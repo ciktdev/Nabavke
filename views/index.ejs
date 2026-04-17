@@ -82,51 +82,36 @@
         </tr>
     </thead>
     <tbody>
-        <% fondovi.forEach(fond => { %>
-            <tr>
-                <td> <%= fond.id %></td>
-                <td><strong><%= fond.godina %></strong></td>
-                <td><strong><%= fond.ime %></strong></td>
-                
-                <td class="sredstva-celija" 
-                    onclick="izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')" 
-                    title="Klikni da izmeniš iznos">
-                    <span id="iznos-<%= fond.id %>"><%= fond.sredstva %></span>
-                </td>
-                
-                <td><%= fond.status === 'a' ? '✅ Aktivan' : '❌ Pasivan' %></td>
-                
-                <td>
-                    <button class="btn-obrisi" onclick="potvrdiBrisanje('<%= fond.id %>', '<%= fond.ime %>')">
-                        🗑️
-                    </button>
-                </td>
-            </tr>
+    <% fondovi.forEach(fond => { %>
+        <tr style="cursor: pointer;" onclick="prikaziStavke('<%= fond.id %>')">
+            <td><%= fond.id %></td>
+            <td><strong><%= fond.godina %></strong></td>
+            <td><strong><%= fond.ime %></strong></td>
+            
+            <td class="sredstva-celija" 
+                onclick="event.stopPropagation(); izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')" 
+                title="Klikni da izmeniš iznos">
+                <span id="iznos-<%= fond.id %>"><%= fond.sredstva %></span>
+            </td>
+            
+            <td><%= fond.status === 'a' ? '✅ Aktivan' : '❌ Pasivan' %></td>
+            
+            <td>
+                <button class="btn-obrisi" onclick="event.stopPropagation(); potvrdiBrisanje('<%= fond.id %>', '<%= fond.ime %>')">
+                    🗑️
+                </button>
+            </td>
+        </tr>
 
-            <!-- <tr id="stavke-container-<%= fond.id %>" style="display: none;" class="stavke-detalji-row">
-                <td colspan="6">
-                    <div class="stavke-wrapper">
-                        <h4 style="margin-top: 0;">📦 Stavke za: <%= fond.ime %> (<%= fond.godina %>)</h4>
-                        <table class="tabela-stavki-unutrasnja">
-                            <thead>
-                                <tr>
-                                    <th>Datum</th>
-                                    <th>Br. Računa</th>
-                                    <th>Artikal</th>
-                                    <th>Količina</th>
-                                    <th>Vrednost sa PDV</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="lista-stavki-<%= fond.id %>">
-                                <tr><td colspan="6">Učitavanje...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </td>
-            </tr> -->
-        <% }) %>
-    </tbody>
+        <tr id="stavke-row-<%= fond.id %>" style="display: none; background-color: #f9f9f9;">
+            <td colspan="6">
+                <div id="kontejner-<%= fond.id %>" style="padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin: 5px;">
+                    <p>Učitavanje stavki...</p>
+                </div>
+            </td>
+        </tr>
+    <% }) %>
+</tbody>
 </table>
 <script src="/js/script.js"></script>
 </body>

@@ -135,3 +135,57 @@ function izmeniSredstva(id, ime, trenutnaVrednost) {
         .catch(err => alert("Došlo je do greške pri komunikaciji sa serverom."));
     }
 }
+
+async function prikaziStavke(id) {
+    const row = document.getElementById(`stavke-row-${id}`);
+    const kontejner = document.getElementById(`kontejner-${id}`);
+
+    // Ako je već otvoreno, zatvori ga (toggle)
+    if (row.style.display === "table-row") {
+        row.style.display = "none";
+        return;
+    }
+
+    try {
+        const response = await fetch(`/stavke-fonda/${id}`);
+        const stavke = await response.json();
+
+        if (stavke.length === 0) {
+            kontejner.innerHTML = "<p>Nema pronađenih stavki za ovaj fond.</p>";
+        } else {
+            let html = `
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #ccc; text-align: left;">
+                            <th>Artikal</th>
+                            <th>Račun</th>
+                            <th>Količina</th>
+                            <th>Cena sa PDV</th>
+                            <th>Vrednost sa PDV</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            stavke.forEach(s => {
+                html += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td>${s.naziv_artikla}</td>
+                        <td>${s.br_racuna}</td>
+                        <td>${s.kolicina}</td>
+                        <td>${s.cena_sa_pdv}</td>
+                        <td>${s.vred_sa_pdv}</td>
+                        <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
+                    </tr>`;
+            });
+
+            html += `</tbody></table>`;
+            kontejner.innerHTML = html;
+        }
+
+        row.style.display = "table-row";
+    } catch (error) {
+        console.error("Greška:", error);
+        alert("Nije uspelo učitavanje stavki.");
+    }
+}

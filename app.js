@@ -209,6 +209,25 @@ app.post('/azuriraj-sredstva', express.json(), (req, res) => {
     });
 });
 
+app.get('/stavke-fonda/:id', (req, res) => {
+    const fondId = req.params.id;
+
+    // 1. Prvo tražimo ime i godinu fonda da bismo znali šta da tražimo u stavkama
+    db.query("SELECT ime, godina FROM fond WHERE id = ?", [fondId], (err, fond) => {
+        if (err || fond.length === 0) return res.status(404).json({ error: "Fond nije pronađen" });
+
+        const { ime, godina } = fond[0];
+
+        // 2. Tražimo sve stavke za taj fond
+        const sqlStavke = "SELECT * FROM stavke WHERE izvor_finansiranja = ? AND godina = ?";
+        db.query(sqlStavke, [ime, godina], (errStavke, stavke) => {
+            if (errStavke) return res.status(500).json({ error: "Greška pri čitanju stavki" });
+            
+            res.json(stavke); // Šaljemo podatke nazad frontendu
+        });
+    });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server je pokrenut na http://localhost:${PORT}`);
