@@ -2,101 +2,121 @@ const xlsx = require('xlsx');
 
 /**
  * Funkcija prolazi kroz dostavljene fajlove, traži sheet "REALIZACIJA"
- * i izvlači parove { ime, godina } iz kolona "Izvor finansiranja" i "Datum".
+ * i izvlači sve stavke (artikle) zajedno sa informacijama o fondu.
  */
-const izvuciFondoveIzFajlova = (files) => {
-    let sviPronadjeniPodaci = [];
+const izvuciPodatkeIzExcela = (files) => {
+    let sveStavke = [];
 
     files.forEach(fajl => {
         try {
-            const workbook = xlsx.read(fajl.buffer);
+            const workbook = xlsx.read(fajl.buffer, { type: 'buffer' });
             const sheet = workbook.Sheets["REALIZACIJA"];
             
             if (!sheet) {
-                console.log(`[SKENER] Preskačem fajl "${fajl.originalname}" - nema sheet-a REALIZACIJA.`);
+                console.log(`[SKENER] Preskačem fajl "${fajl.originalname}" - nema taba REALIZACIJA.`);
                 return;
             }
 
-            const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-            let kolonaIzvora = -1;
-            let kolonaDatuma = -1;
+            // defval: "" sprečava pucanje ako su neke ćelije potpuno prazne
+            const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            
+            let kolone = { 
+                datum: -1, izvor: -1, artikal: -1, racun: -1, 
+                kol: -1, cenaBez: -1, cenaSa: -1, 
+                vrednostBez: -1, vrednostSa: -1, 
+                status: -1, datumPla: -1 
+            };
+
             let startniRed = -1;
 
-            // 1. Pronalaženje zaglavlja (tražimo gde su kolone Datum i Izvor)
+            // 1. Pronalaženje zaglavlja (tražimo red gde su nazivi kolona)
             for (let i = 0; i < podaci.length; i++) {
-                const red = podaci[i];
-                if (!red) continue;
+                const red = podaci[i].map(c => c ? c.toString().toLowerCase().trim() : "");
                 
-                const indexDatuma = red.findIndex(c => c && c.toString().toLowerCase().includes('datum'));
-                const indexIzvora = red.findIndex(c => c && c.toString().toLowerCase().includes('izvor finansiranja'));
+                if (red.includes('izvor finansiranja') && red.includes('datum')) {
+                    kolone.datum = red.indexOf('datum');
+                    kolone.izvor = red.indexOf('izvor finansiranja');
+                    kolone.artikal = red.findIndex(c => c.includes('artikl') || c.includes('naziv artikla'));
+                    kolone.racun = red.findIndex(c => c.includes('račun') || c.includes('racun'));
+                    kolone.kol = red.findIndex(c => c.includes('kol.'));
+                    kolone.cenaBez = red.findIndex(c => c.includes('cena bez'));
+                    kolone.cenaSa = red.findIndex(c => c.includes('cena sa'));
+                    kolone.vrednostBez = red.findIndex(c => c.includes('vred. bez') || c.includes('vrednost bez'));
+                    kolone.vrednostSa = red.findIndex(c => c.includes('vrednost sa') || c.includes('vred. sa'));
+                    kolone.status = red.findIndex(c => c.includes('status') || c.includes('status'));
+                    kolone.datumPla = red.findIndex(c => c.includes('datum placa') || c.includes('datum plaća'));
 
-                if (indexDatuma !== -1 && indexIzvora !== -1) {
                     startniRed = i + 1;
-                    kolonaDatuma = indexDatuma;
-                    kolonaIzvora = indexIzvora;
                     break;
                 }
             }
 
-            // 2. Izvlačenje podataka red po red
-            if (kolonaIzvora !== -1 && kolonaDatuma !== -1) {
+            // 2. Provera da li smo našli bar osnovne kolone
+            if (startniRed !== -1 && kolone.izvor !== -1) {
                 console.log(`[SKENER] Obrađujem fajl: ${fajl.originalname}`);
-                
+
                 for (let i = startniRed; i < podaci.length; i++) {
                     const red = podaci[i];
-                    if (!red) continue;
+                    if (!red || red.length === 0) continue;
 
-                    let ime = red[kolonaIzvora] ? red[kolonaIzvora].toString().trim() : null;
-                    let siroviDatum = red[kolonaDatuma];
+                    // Izvlačenje osnovnih vrednosti za validaciju
+                    let imeFonda = red[kolone.izvor] ? red[kolone.izvor].toString().trim() : null;
+                    let nazivArtikla = red[kolone.artikal] ? red[kolone.artikal].toString().trim() : null;
+                    let siroviDatum = red[kolone.datum];
                     let godina = null;
 
-                    // Logika za izvlačenje godine
+                    // Logika za godinu
                     if (siroviDatum) {
                         if (typeof siroviDatum === 'number') {
-                            // Excel datumski format
-                            const dateObj = xlsx.SSF.parse_date_code(siroviDatum);
-                            godina = dateObj.y;
+                            godina = xlsx.SSF.parse_date_code(siroviDatum).y;
                         } else {
-                            // Tekstualni format (tražimo 4 cifre, npr. 2026)
                             const match = siroviDatum.toString().match(/\d{4}/);
-                            if (match) {
-                                godina = parseInt(match[0]);
-                            }
+                            if (match) godina = parseInt(match[0]);
                         }
                     }
 
-                    // Validacija i logovanje
-                    if (ime && godina && ime.toLowerCase() !== 'izvor finansiranja') {
-                        // Ovde vidiš u terminalu šta je tačno upareno
-                        console.log(` -> Pronađeno u redu ${i + 1}: [${godina}] ${ime}`);
-                        sviPronadjeniPodaci.push({ ime, godina });
-                    } else if (ime) {
-                        // Loguj ako smo našli ime ali ne i godinu u tom istom redu
-                        console.log(` -> PRESKOČENO u redu ${i + 1}: Nađeno ime "${ime}", ali fali godina.`);
+                    // --- VALIDACIJA I LOGOVANJE ---
+                    // Uslov: Mora imati Fond, Godinu i Naziv artikla, i ne sme biti naslovni red
+                    if (imeFonda && godina && nazivArtikla && imeFonda.toLowerCase() !== 'izvor finansiranja') {
+                        
+                        // Ako prođe validaciju, dodajemo u niz
+                        sveStavke.push({
+                            ime_fonda: imeFonda,
+                            godina: godina,
+                            datum: siroviDatum,
+                            br_racuna: red[kolone.racun] || "/",
+                            artikal: nazivArtikla,
+                            kolicina: parseFloat(red[kolone.kol]) || 0,
+                            cenaBez: parseFloat(red[kolone.cenaBez]) || 0,
+                            cenaSa: parseFloat(red[kolone.cenaSa]) || 0,
+                            vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
+                            vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
+                            status: red[kolone.status] || "Nije navedeno",
+                            datumPla: red[kolone.datumPla] || null
+                        });
+
+                        console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);
+
+                    } else {
+                        // Opciono logovanje zašto je red preskočen (samo ako red nije skroz prazan)
+                        if (imeFonda || nazivArtikla) {
+                            let razlog = !godina ? "fali godina" : (!nazivArtikla ? "fali artikal" : "naslovni red");
+                            console.log(` -> RED ${i + 1}: PRESKOČENO (${razlog})`);
+                        }
                     }
                 }
             } else {
-                console.log(`[SKENER] Fajl "${fajl.originalname}" nema potrebne kolone (Datum ili Izvor).`);
+                console.log(`[SKENER] Fajl "${fajl.originalname}" nema potrebne kolone (Izvor finansiranja).`);
             }
         } catch (e) {
             console.error(`[GREŠKA] Problem sa fajlom ${fajl.originalname}:`, e.message);
         }
     });
 
-    // 3. Uklanjanje duplikata pre slanja u bazu (unikatni parovi Ime-Godina)
-    const unikati = [];
-    const mapaDuplikata = new Set();
-
-    for (const stavka of sviPronadjeniPodaci) {
-        const kljuc = `${stavka.ime.toLowerCase()}-${stavka.godina}`;
-        if (!mapaDuplikata.has(kljuc)) {
-            mapaDuplikata.add(kljuc);
-            unikati.push(stavka);
-        }
-    }
-
-    console.log(`[SKENER] Ukupno pronađeno unikatnih parova za uvoz: ${unikati.length}`);
-    return unikati;
+    console.log(`[SKENER] Ukupno spremno za bazu: ${sveStavke.length} stavki.`);
+    return sveStavke;
 };
 
-module.exports = { izvuciFondoveIzFajlova };
+module.exports = {
+    izvuciPodatkeIzExcela
+};

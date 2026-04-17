@@ -59,48 +59,100 @@ app.get('/', (req, res) => {
     });
 });
 
-// RUTA ZA SKENIRANJE SAMO FONDOVA
 app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
     if (!req.files || req.files.length === 0) {
         return res.json({ success: false, message: "Niste izabrali nijedan fajl." });
     }
 
     try {
-        // Pozivamo funkciju koja samo traži Ime fonda i Godinu
-        const pronadjeniFondovi = excelService.izvuciFondoveIzFajlova(req.files);
+        // Pozivamo novu funkciju iz servisa koja izvlači sve detalje
+        const sveStavke = excelService.izvuciPodatkeIzExcela(req.files);
 
-        if (pronadjeniFondovi.length === 0) {
-            return res.json({ success: false, message: "Nijedan fond nije pronađen u fajlovima." });
+        if (sveStavke.length === 0) {
+            return res.json({ success: false, message: "Nijedna validna stavka nije pronađena." });
         }
 
-        let novi = 0;
-        let zavrseno = 0;
+        let obradjeno = 0;
+        let greske = 0;
 
-        pronadjeniFondovi.forEach(f => {
-            // Koristimo INSERT IGNORE da ne bi duplirali fondove ako već postoje
+        const formatirajZaBazu = (d) => {
+            if (!d) return null;
+
+            // 1. Ako je Excel poslao datum kao broj (npr. 46062)
+            if (typeof d === 'number') {
+                const date = new Date((d - 25569) * 86400 * 1000);
+                return date.toISOString().split('T')[0];
+            }
+
+            // 2. Ako je datum string sa tačkama (npr. "10.02.2026" ili "10.02.2026.")
+            const s = d.toString().trim();
+            const delovi = s.split('.');
+    
+            // Proveravamo da li imamo barem dan, mesec i godinu
+            if (delovi.length >= 3) {
+                const dan = delovi[0].padStart(2, '0');
+                const mesec = delovi[1].padStart(2, '0');
+                const godina = delovi[2];
+        
+                // Vraćamo u formatu koji MySQL jedino prihvata: YYYY-MM-DD
+                return `${godina}-${mesec}-${dan}`;
+            }
+
+            // 3. Ako je već u dobrom formatu (YYYY-MM-DD), vrati ga tako
+            return d;
+        };
+
+        sveStavke.forEach(s => {
+            // 1. Prvo osiguravamo da fond postoji u tabeli 'fond'
             db.query(
                 "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
-                [f.ime, f.godina],
-                (err, result) => {
-                    zavrseno++;
-                    if (!err && result.affectedRows > 0) {
-                        novi++;
+                [s.ime_fonda, s.godina],
+                (err) => {
+                    if (err) {
+                        console.error("Greška pri unosu fonda:", err);
+                        greske++;
+                        proveriKraj();
+                        return;
                     }
 
-                    // Kad prođe kroz sve, vrati odgovor klijentu
-                    if (zavrseno === pronadjeniFondovi.length) {
-                        res.json({ 
-                            success: true, 
-                            message: `Obrada završena. Dodato novih: ${novi}.` 
-                        });
-                    }
+                    // 2. Ubacujemo stavku u tabelu 'stavke'
+                    const sqlStavka = `INSERT INTO stavke 
+                        (datum_nabavke, godina, br_racuna, izvor_finansiranja, naziv_artikla, 
+                         kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                         status_placanja, datum_placanja) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                    const paramsStavka = [
+                        formatirajZaBazu(s.datum), s.godina, s.br_racuna, s.ime_fonda, s.artikal,
+                        s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
+                        s.status, formatirajZaBazu(s.datumPla)
+                    ];
+
+                    db.query(sqlStavka, paramsStavka, (errStavka) => {
+                        if (errStavka) {
+                            console.error("Greška pri unosu stavke:", errStavka);
+                            greske++;
+                        } else {
+                            obradjeno++;
+                        }
+                        proveriKraj();
+                    });
                 }
             );
         });
 
+        function proveriKraj() {
+            if (obradjeno + greske === sveStavke.length) {
+                res.json({ 
+                    success: true, 
+                    message: `Skeniranje završeno. Uspešno dodato: ${obradjeno}. Grešaka: ${greske}.` 
+                });
+            }
+        }
+
     } catch (error) {
-        console.error("Greška pri skeniranju:", error);
-        res.status(500).json({ success: false, message: "Greška na serveru." });
+        console.error("Fatalna greška u ruti /skeniraj:", error);
+        res.status(500).json({ success: false, message: "Greška na serveru prilikom obrade." });
     }
 });
 
