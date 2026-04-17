@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>Fondovi - Node.js</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <h2>Nabavke</h2>
+
+    <div class="forma">
+        <h3>Dodaj novi fond ručno</h3>
+        <form action="/dodaj" method="POST">
+            <input type="text" name="ime" placeholder="Ime fonda" required>
+            <input type="number" name="sredstva" placeholder="Iznos" required>
+            <input type="number" name="godina" value="<%= new Date().getFullYear() %>" placeholder="Godina" required>
+            <select name="status">
+                <option value="a">Aktivan (a)</option>
+                <option value="p">Pasivan (p)</option>
+            </select>
+            <button type="submit">Dodaj</button>
+        </form>
+    </div>
+
+    <div class="forma excel-sekcija" style="background: #e2f3f5; border: 1px solid #adc5cf; padding: 15px;">
+        <h3>Uvoz podataka iz Excel-a</h3>
+    
+        <div style="margin-bottom: 20px; padding: 10px; border-bottom: 1px dashed #999;">
+            <label><strong>1. Odaberi specifične fajlove:</strong></label><br>
+            <p><small>Ovde možeš izabrati jedan ili više fajlova (drži Ctrl za više).</small></p>
+            <input type="file" id="fileInput" multiple accept=".xlsx, .xls">
+            <button type="button" onclick="posaljiSaInputa('fileInput')">Učitaj izabrane fajlove</button>
+        </div>
+
+        <div style="padding: 10px;">
+            <label><strong>2. Odaberi ceo folder:</strong></label><br>
+            <p><small>Korisno kada imaš 50+ novih fajlova odjednom.</small></p>
+            <input type="file" id="folderInput" webkitdirectory directory multiple>
+            <button type="button" onclick="posaljiSaInputa('folderInput')">Skeniraj ceo folder</button>
+        </div>
+    </div>
+
+    <fieldset class="forma">
+        <legend>Filteri i Pretraga</legend>
+        <form action="/" method="GET">
+            <input type="text" name="pretraga" placeholder="Pretraži po imenu..." value="<%= filteri.pretraga || '' %>">
+            <select name="status">
+                <option value="">Svi statusi</option>
+                <option value="a" <%= filteri.status === 'a' ? 'selected' : '' %>>Aktivan</option>
+                <option value="p" <%= filteri.status === 'p' ? 'selected' : '' %>>Pasivan</option>
+            </select>
+            <button type="submit">Filtriraj</button>
+            <a href="/">Poništi</a>
+        </form>
+    </fieldset>
+
+    <table>
+    <thead>
+        <tr>
+            <th>
+                <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=id&order=<%= (filteri.sort_by === 'id' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                    ID <%= filteri.sort_by === 'id' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
+                </a>
+            </th>
+            
+            <th>
+                <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=godina&order=<%= (filteri.sort_by === 'godina' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                    Godina <%= filteri.sort_by === 'godina' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
+                </a>
+            </th>
+
+            <th>
+                <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=ime&order=<%= (filteri.sort_by === 'ime' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                    Ime fonda <%= filteri.sort_by === 'ime' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
+                </a>
+            </th>
+
+            <th>Sredstva</th>
+            <th>Status</th>
+            <th>Akcije</th>
+        </tr>
+    </thead>
+    <tbody>
+        <% fondovi.forEach(fond => { %>
+            <tr>
+                <td> <%= fond.id %></td>
+                <td><strong><%= fond.godina %></strong></td>
+                <td><strong><%= fond.ime %></strong></td>
+                
+                <td class="sredstva-celija" 
+                    onclick="izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')" 
+                    title="Klikni da izmeniš iznos">
+                    <span id="iznos-<%= fond.id %>"><%= fond.sredstva %></span>
+                </td>
+                
+                <td><%= fond.status === 'a' ? '✅ Aktivan' : '❌ Pasivan' %></td>
+                
+                <td>
+                    <button class="btn-obrisi" onclick="potvrdiBrisanje('<%= fond.id %>', '<%= fond.ime %>')">
+                        🗑️
+                    </button>
+                </td>
+            </tr>
+
+            <!-- <tr id="stavke-container-<%= fond.id %>" style="display: none;" class="stavke-detalji-row">
+                <td colspan="6">
+                    <div class="stavke-wrapper">
+                        <h4 style="margin-top: 0;">📦 Stavke za: <%= fond.ime %> (<%= fond.godina %>)</h4>
+                        <table class="tabela-stavki-unutrasnja">
+                            <thead>
+                                <tr>
+                                    <th>Datum</th>
+                                    <th>Br. Računa</th>
+                                    <th>Artikal</th>
+                                    <th>Količina</th>
+                                    <th>Vrednost sa PDV</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-stavki-<%= fond.id %>">
+                                <tr><td colspan="6">Učitavanje...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr> -->
+        <% }) %>
+    </tbody>
+</table>
+<script src="/js/script.js"></script>
+</body>
+</html>

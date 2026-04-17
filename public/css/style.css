@@ -1,0 +1,58 @@
+body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .forma { background: #f4f4f4; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ccc; }
+        .btn-obrisi { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
+        .excel-sekcija { background: #e2f3f5; border: 1px solid #adc5cf; }
+
+th a {
+    text-decoration: none;
+    color: inherit; /* Uzima boju teksta iz TH */
+    display: block;
+    width: 100%;
+}
+th a:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.sredstva-celija {
+    cursor: pointer;
+    background-color: #fffdf0; /* Blaga žuta boja da se razlikuje */
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.sredstva-celija:hover {
+    background-color: #fdf5bc;
+    text-decoration: underline;
+}
+
+/* Stil za kontejner stavki koji se otvara */
+.stavke-detalji-row {
+    background-color: #fcfcfc;
+}
+
+.stavke-wrapper {
+    padding: 15px;
+    border: 1px dashed #3498db;
+    margin: 10px;
+    border-radius: 5px;
+}
+
+.tabela-stavki-unutrasnja {
+    width: 100%;
+    font-size: 0.9em;
+    border-collapse: collapse;
+    background: white;
+}
+
+.tabela-stavki-unutrasnja th {
+    background-color: #ecf0f1;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.tabela-stavki-unutrasnja td {
+    border: 1px solid #ddd;
+}
