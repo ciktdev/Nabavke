@@ -31,8 +31,15 @@ const izvuciPodatkeIzExcela = (files) => {
 
             // 1. Pronalaženje zaglavlja (tražimo red gde su nazivi kolona)
             for (let i = 0; i < podaci.length; i++) {
-                const red = podaci[i].map(c => c ? c.toString().toLowerCase().trim() : "");
-                
+                const red = podaci[i].map(c => 
+                                            c ? c.toString()
+                                                .replace(/[\r\n]+/g, ' ') // Zamenjuje \r i \n (jedan ili više) običnim razmakom
+                                                .toLowerCase()
+                                                .replace(/\s+/g, ' ')     // Smanjuje višestruke razmake na samo jedan
+                                                .trim() 
+                                            : ""
+                                        );
+
                 if (red.includes('izvor finansiranja') && red.includes('datum')) {
                     kolone.datum = red.indexOf('datum');
                     kolone.izvor = red.indexOf('izvor finansiranja');
@@ -42,11 +49,13 @@ const izvuciPodatkeIzExcela = (files) => {
                     kolone.cenaBez = red.findIndex(c => c.includes('cena bez'));
                     kolone.cenaSa = red.findIndex(c => c.includes('cena sa'));
                     kolone.vrednostBez = red.findIndex(c => c.includes('vred. bez') || c.includes('vrednost bez'));
-                    kolone.vrednostSa = red.findIndex(c => c.includes('vrednost sa') || c.includes('vred. sa'));
+                    kolone.vrednostSa = red.findIndex(c => (c.includes(('vrednost sa') || c.includes('vred.')) && !c.includes('nerealizovan')));
                     kolone.status = red.findIndex(c => c.includes('status') || c.includes('status'));
-                    kolone.datumPla = red.findIndex(c => c.includes('datum placa') || c.includes('datum plaća'));
+                    kolone.datumPla = red.findIndex(c => (c.includes('datum placa') || c.includes('datum plaća')));
 
                     startniRed = i + 1;
+                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}`);
+                    console.log(red);
                     break;
                 }
             }
