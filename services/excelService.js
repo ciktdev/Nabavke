@@ -100,7 +100,7 @@ const izvuciPodatkeIzExcela = (files) => {
                             cenaSa: parseFloat(red[kolone.cenaSa]) || 0,
                             vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
                             vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
-                            status: red[kolone.status] || "Nije navedeno",
+                            status: red[kolone.status] || null,
                             datumPla: red[kolone.datumPla] || null
                         });
 
