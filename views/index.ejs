@@ -10,9 +10,9 @@
     <h2>Nabavke</h2>
 
     <div class="forma">
-        <h3>Dodaj novi fond ručno</h3>
+        <h3>Dodaj novi izvor finansiranja ručno</h3>
         <form action="/dodaj" method="POST">
-            <input type="text" name="ime" placeholder="Ime fonda" required>
+            <input type="text" name="ime" placeholder="Izvor finansiranja" required>
             <input type="number" name="sredstva" placeholder="Iznos" required>
             <input type="number" name="godina" value="<%= new Date().getFullYear() %>" placeholder="Godina" required>
             <select name="status">
