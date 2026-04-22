@@ -17,8 +17,16 @@ async function potvrdiBrisanje(id, ime) {
 }
 
 async function posaljiSaInputa(inputId) {
-    const files = document.getElementById(inputId).files;
+    const input = document.getElementById(inputId);
+    const files = input.files;
+    
     if (files.length === 0) return alert("Niste izabrali fajlove.");
+
+    // Hvatanje dugmeta preko event-a i postavljanje statusa učitavanja
+    const btn = event.target;
+    const originalniTekst = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "Skeniram...";
 
     const formData = new FormData();
     for (const file of files) {
@@ -30,9 +38,21 @@ async function posaljiSaInputa(inputId) {
     try {
         const response = await fetch('/skeniraj', { method: 'POST', body: formData });
         const rezultat = await response.json();
-        if (rezultat.success) window.location.reload();
-        else alert("Greška: " + rezultat.message);
-    } catch (err) { alert("Greška pri slanju."); }
+
+        if (rezultat.success) {
+            // Prikaz detaljne poruke sa servera (Uneto: X, Grešaka: Y)
+            alert(rezultat.message); 
+            window.location.reload();
+        } else {
+            alert("Greška: " + rezultat.message);
+        }
+    } catch (err) { 
+        alert("Greška pri slanju."); 
+    } finally {
+        // Vraćanje dugmeta u prvobitno stanje
+        btn.disabled = false;
+        btn.innerText = originalniTekst;
+    }
 }
 
 
