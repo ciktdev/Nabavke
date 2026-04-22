@@ -236,22 +236,27 @@ app.post('/azuriraj-sredstva', express.json(), (req, res) => {
     });
 });
 
-app.get('/stavke-fonda/:id', (req, res) => {
+// Ruta za dobijanje kontova za određeni fond
+app.get('/api/fond/:id/kontovi', (req, res) => {
     const fondId = req.params.id;
+    // Spajamo tabele preko imena i godine jer je to veza u tvojoj šemi
+    const sql = `
+        SELECT k.* FROM konto k
+        JOIN fond f ON k.fond_ime = f.ime AND k.fond_godina = f.godina
+        WHERE f.id = ?`;
+    
+    db.query(sql, [fondId], (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json(results);
+    });
+});
 
-    // 1. Prvo tražimo ime i godinu fonda da bismo znali šta da tražimo u stavkama
-    db.query("SELECT ime, godina FROM fond WHERE id = ?", [fondId], (err, fond) => {
-        if (err || fond.length === 0) return res.status(404).json({ error: "Fond nije pronađen" });
-
-        const { ime, godina } = fond[0];
-
-        // 2. Tražimo sve stavke za taj fond
-        const sqlStavke = "SELECT * FROM stavke WHERE izvor_finansiranja = ? AND godina = ?";
-        db.query(sqlStavke, [ime, godina], (errStavke, stavke) => {
-            if (errStavke) return res.status(500).json({ error: "Greška pri čitanju stavki" });
-            
-            res.json(stavke); // Šaljemo podatke nazad frontendu
-        });
+// Ruta za dobijanje stavki za određeni konto
+app.get('/api/konto/:id/stavke', (req, res) => {
+    const kontoId = req.params.id;
+    db.query('SELECT * FROM stavke WHERE konto_id = ?', [kontoId], (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json(results);
     });
 });
 

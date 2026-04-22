@@ -1,9 +1,8 @@
-// FUNKCIJA ZA BRISANJE
+// Globalne funkcije za brisanje i uvoz ostaju slične, ali fokus je na novoj navigaciji
 async function potvrdiBrisanje(id, ime) {
     if (!confirm(`Da li ste sigurni da želite da obrišete fond: ${ime}?`)) return;
-
     let lozinka = prompt("Unesite administratorsku lozinku:");
-    if (lozinka === null) return;
+    if (!lozinka) return;
 
     try {
         const response = await fetch('/obrisi', {
@@ -11,181 +10,280 @@ async function potvrdiBrisanje(id, ime) {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `id=${id}&lozinka=${encodeURIComponent(lozinka)}`
         });
-
         const data = await response.json();
-        if (data.success) {
-            alert("Obrađeno!");
-            window.location.reload();
-        } else {
-            alert(data.message);
-        }
-        } catch (error) {
-            alert("Greška na serveru.");
-        }
+        if (data.success) window.location.reload();
+        else alert(data.message);
+    } catch (error) { alert("Greška na serveru."); }
 }
 
-        // FUNKCIJA ZA SLANJE FOLDERA
 async function posaljiSaInputa(inputId) {
-    const input = document.getElementById(inputId);
-    const files = input.files;
-
-    if (files.length === 0) {
-        alert("Niste izabrali nijedan fajl.");
-        return;
-    }
+    const files = document.getElementById(inputId).files;
+    if (files.length === 0) return alert("Niste izabrali fajlove.");
 
     const formData = new FormData();
-    let brojacExcela = 0;
-
     for (const file of files) {
-            // Provera ekstenzije
         if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
             formData.append('excelFajlovi', file);
-            brojacExcela++;
         }
     }
 
-    if (brojacExcela === 0) {
-        alert("Među izabranim stavkama nema Excel fajlova (.xlsx ili .xls)");
+    try {
+        const response = await fetch('/skeniraj', { method: 'POST', body: formData });
+        const rezultat = await response.json();
+        if (rezultat.success) window.location.reload();
+        else alert("Greška: " + rezultat.message);
+    } catch (err) { alert("Greška pri slanju."); }
+}
+
+// NOVO: Funkcija za prikaz kontova koji pripadaju fondu
+async function prikaziKonta(fondId) {
+    const row = document.getElementById(`fond-expand-${fondId}`);
+    const container = document.getElementById(`lista-konta-${fondId}`);
+
+    if (row.style.display === 'table-row') {
+        row.style.display = 'none';
         return;
     }
-    
-// Vizuelni feedback
-    const btn = event.target;
-    const originalniTekst = btn.innerText;
-    btn.innerText = "Slanje...";
-    btn.disabled = true;
 
-   // ... tvoj postojeći kod koji proverava ekstenzije ...
-        
-    // DODAJ OVO ISPOD btn.disabled = true;
+    row.style.display = 'table-row';
+    container.innerHTML = '<p>Učitavanje kontova...</p>';
+
     try {
-        const response = await fetch('/skeniraj', { // OVDE ide tvoja stara ruta za fondove
-            method: 'POST',
-            body: formData
+        // API poziv za kontove (bazirano na šemi gde konto ima fond_ime i fond_godina)
+        const response = await fetch(`/api/fond/${fondId}/kontovi`);
+        const kontovi = await response.json();
+
+        if (kontovi.length === 0) {
+            container.innerHTML = '<p>Ovaj fond nema definisanih kontova.</p>';
+            return;
+        }
+
+        let html = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="background: #d1e7ed; text-align: left;">
+                        <th>Naziv Konta</th>
+                        <th>Planirana Sredstva</th>
+                        <th>Utrošeno</th>
+                        <th>Dostupno</th>
+                        <th>Akcija</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        kontovi.forEach(k => {
+            html += `
+                <tr style="border-bottom: 1px solid #ccc; cursor: pointer;" onclick="prikaziStavkeKonta('${k.id}')">
+                    <td><strong>${k.ime_konta}</strong></td>
+                    <td>${k.sredstva}</td>
+                    <td style="color: #d9534f;">${k.utrosena_sredstva}</td>
+                    <td style="font-weight: bold; color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'};">${k.dostupna_sredstva}</td>
+                    <td><button>Prikaži detalje</button></td>
+                </tr>
+                <tr id="konto-expand-${k.id}" style="display: none; background: white;">
+                    <td colspan="5">
+                        <div id="kontejner-stavki-${k.id}" style="padding: 10px; border: 1px dashed #999;">Učitavanje stavki...</div>
+                    </td>
+                </tr>`;
         });
 
-        const rezultat = await response.json();
-
-        if (rezultat.success) {
-            alert(rezultat.message || "Fondovi uspešno učitani.");
-            window.location.reload();
-        } else {
-            alert("Greška: " + rezultat.message);
-        }
+        html += `</tbody></table>`;
+        container.innerHTML = html;
     } catch (err) {
-        console.error(err);
-        alert("Došlo je do greške pri slanju na server.");
-    } finally {
-        // Vraćamo dugme u prvobitno stanje
-        btn.innerText = originalniTekst;
-        btn.disabled = false;
+        container.innerHTML = '<p style="color:red;">Greška pri učitavanju kontova.</p>';
     }
-} // Zatvaranje funkcije
+}
 
-// 1. Čim se stranica učita, proveri da li imamo sačuvanu poziciju
-document.addEventListener("DOMContentLoaded", function() {
+// NOVO: Funkcija za prikaz stavki unutar specifičnog konta
+async function prikaziStavkeKonta(kontoId) {
+    const row = document.getElementById(`konto-expand-${kontoId}`);
+    const container = document.getElementById(`kontejner-stavki-${kontoId}`);
+
+    if (row.style.display === 'table-row') {
+        row.style.display = 'none';
+        return;
+    }
+
+    row.style.display = 'table-row';
+
+    try {
+        const response = await fetch(`/api/konto/${kontoId}/stavke`);
+        const stavke = await response.json();
+
+        if (stavke.length === 0) {
+            container.innerHTML = 'Nema stavki za ovaj konto.';
+            return;
+        }
+
+        let html = `
+            <table style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #ddd; color: #555;">
+                        <th>Artikal</th>
+                        <th>Račun</th>
+                        <th>Količina</th>
+                        <th>Vrednost sa PDV</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        stavke.forEach(s => {
+            html += `
+                <tr>
+                    <td>${s.naziv_artikla}</td>
+                    <td>${s.br_racuna}</td>
+                    <td>${s.kolicina}</td>
+                    <td>${s.vred_sa_pdv}</td>
+                    <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
+                </tr>`;
+        });
+
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = 'Greška pri učitavanju stavki.';
+    }
+}
+
+// Čuvanje pozicije skrola
+document.addEventListener("DOMContentLoaded", () => {
     const scrollPos = localStorage.getItem("scrollPosition");
     if (scrollPos) {
         window.scrollTo(0, parseInt(scrollPos));
-         // Opciono: obriši nakon vraćanja ako ne želiš da "lepi" stalno
         localStorage.removeItem("scrollPosition");
     }
 });
 
-// 2. Pre nego što korisnik napusti stranicu (klik na link ili slanje forme)
-// sačuvaj trenutnu vertikalnu poziciju (window.scrollY)
-window.addEventListener("beforeunload", function() {
+window.addEventListener("beforeunload", () => {
     localStorage.setItem("scrollPosition", window.scrollY);
 });
 
+// Vraćena funkcija za promenu sredstava u fondu
 function izmeniSredstva(id, ime, trenutnaVrednost) {
-    // 1. Tražimo novi iznos
-    const noviIznos = prompt(`Unesite novi iznos sredstava za fond "${ime}":`, trenutnaVrednost);
-    
-    // Ako je korisnik kliknuo Cancel ili uneo prazno, prekidamo
+    const noviIznos = prompt(`Novi iznos za fond "${ime}":`, trenutnaVrednost);
     if (noviIznos === null || noviIznos === "") return;
 
-    // 2. Tražimo lozinku (sigurnosna provera)
-    const lozinka = prompt("Unesite lozinku za potvrdu izmene:");
-    
+    const lozinka = prompt("Unesite lozinku za potvrdu:");
     if (lozinka) {
-        // Šaljemo podatke serveru putem Fetch API-ja
         fetch('/azuriraj-sredstva', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                id: id,
-                sredstva: noviIznos,
-                lozinka: lozinka
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, sredstva: noviIznos, lozinka })
         })
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
             if (data.success) {
-                // Ako je uspelo, ažuriramo broj u tabeli bez osvežavanja stranice
                 document.getElementById(`iznos-${id}`).innerText = noviIznos;
-                alert("Iznos uspešno ažuriran!");
+                alert("Uspešno ažurirano!");
             } else {
                 alert("Greška: " + data.message);
             }
-        })
-        .catch(err => alert("Došlo je do greške pri komunikaciji sa serverom."));
+        });
     }
 }
 
-async function prikaziStavke(id) {
-    const row = document.getElementById(`stavke-row-${id}`);
-    const kontejner = document.getElementById(`kontejner-${id}`);
+async function prikaziKonta(fondId) {
+    const row = document.getElementById(`fond-expand-${fondId}`);
+    const container = document.getElementById(`lista-konta-${fondId}`);
 
-    // Ako je već otvoreno, zatvori ga (toggle)
-    if (row.style.display === "table-row") {
-        row.style.display = "none";
+    if (row.style.display === 'table-row') {
+        row.style.display = 'none';
         return;
     }
 
+    row.style.display = 'table-row';
+    container.innerHTML = 'Učitavanje kontova...';
+
     try {
-        const response = await fetch(`/stavke-fonda/${id}`);
+        const response = await fetch(`/api/fond/${fondId}/kontovi`);
+        const kontovi = await response.json();
+
+        let html = `
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr class="konto-header-red">
+                        <th>Konto</th>
+                        <th>Planirano</th>
+                        <th>Utrošeno</th>
+                        <th>Dostupno</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        kontovi.forEach(k => {
+            html += `
+                <tr id="konto-glavni-${k.id}" style="border-bottom: 1px solid #ccc; cursor: pointer;" 
+                    onclick="event.stopPropagation(); prikaziStavkeKonta('${k.id}')">
+                    <td><strong>${k.ime_konta}</strong></td>
+                    <td>${k.sredstva}</td>
+                    <td>${k.utrosena_sredstva}</td>
+                    <td style="color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'}">${k.dostupna_sredstva}</td>
+                </tr>
+                <tr id="konto-expand-${k.id}" style="display: none;">
+                    <td colspan="4">
+                        <div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div>
+                    </td>
+                </tr>`;
+        });
+        container.innerHTML = html + `</tbody></table>`;
+    } catch (e) { container.innerHTML = "Greška pri učitavanju."; }
+}
+
+async function prikaziStavkeKonta(kontoId) {
+    const row = document.getElementById(`konto-expand-${kontoId}`);
+    const glavniRedKonta = document.getElementById(`konto-glavni-${kontoId}`);
+    const container = document.getElementById(`kontejner-stavki-${kontoId}`);
+
+    if (row.style.display === 'table-row') {
+        row.style.display = 'none';
+        glavniRedKonta.classList.remove('konto-red-otvoren'); // Skloni sticky kad se zatvori
+        return;
+    }
+
+    row.style.display = 'table-row';
+    glavniRedKonta.classList.add('konto-red-otvoren'); // Dodaj sticky kad se otvori
+    container.innerHTML = 'Učitavanje stavki...';
+
+    try {
+        const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
-        if (stavke.length === 0) {
-            kontejner.innerHTML = "<p>Nema pronađenih stavki za ovaj fond.</p>";
-        } else {
-            let html = `
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid #ccc; text-align: left;">
-                            <th>Artikal</th>
-                            <th>Račun</th>
-                            <th>Količina</th>
-                            <th>Cena sa PDV</th>
-                            <th>Vrednost sa PDV</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
+        let html = `
+            <table style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+                <thead>
+                    <tr class="stavke-header">
+                        <th>Artikal</th>
+                        <th>Račun</th>
+                        <th>Vrednost sa PDV</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+        
+        stavke.forEach(s => {
+            html += `
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td>${s.naziv_artikla}</td>
+                    <td>${s.br_racuna}</td>
+                    <td>${s.vred_sa_pdv}</td>
+                    <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
+                </tr>`;
+        });
+        container.innerHTML = html + `</tbody></table>`;
+    } catch (e) { container.innerHTML = "Greška."; }
+}
 
-            stavke.forEach(s => {
-                html += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td>${s.naziv_artikla}</td>
-                        <td>${s.br_racuna}</td>
-                        <td>${s.kolicina}</td>
-                        <td>${s.cena_sa_pdv}</td>
-                        <td>${s.vred_sa_pdv}</td>
-                        <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
-                    </tr>`;
-            });
-
-            html += `</tbody></table>`;
-            kontejner.innerHTML = html;
-        }
-
-        row.style.display = "table-row";
-    } catch (error) {
-        console.error("Greška:", error);
-        alert("Nije uspelo učitavanje stavki.");
-    }
+// Ostale funkcije (brisanje, Excel) ostaju iste kao ranije...
+async function potvrdiBrisanje(id, ime) {
+    if (!confirm(`Obriši fond: ${ime}?`)) return;
+    const lozinka = prompt("Lozinka:");
+    if (!lozinka) return;
+    const res = await fetch('/obrisi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `id=${id}&lozinka=${encodeURIComponent(lozinka)}`
+    });
+    const data = await res.json();
+    if (data.success) window.location.reload(); else alert(data.message);
 }

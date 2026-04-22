@@ -1,58 +1,108 @@
 body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #f8f9fa; }
-        .forma { background: #f4f4f4; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ccc; }
-        .btn-obrisi { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
-        .excel-sekcija { background: #e2f3f5; border: 1px solid #adc5cf; }
 
-th a {
-    text-decoration: none;
-    color: inherit; /* Uzima boju teksta iz TH */
-    display: block;
-    width: 100%;
+/* Razmak između redova pomoću border-spacing */
+table { 
+    border-collapse: separate; 
+    border-spacing: 0 12px; 
+    width: 100%; 
+    margin-top: 20px; 
 }
-th a:hover {
-    background-color: rgba(0,0,0,0.05);
+
+/* 1. Nivo: Glavno zaglavlje tabele (ID, Godina, Ime...) */
+thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #ddd;
+    padding: 10px;
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.4);
 }
+
+/* 2. Nivo: Glavni red fonda */
+.fond-glavni-red {
+    position: sticky;
+    top: 45px; /* Visina glavnog zaglavlja */
+    z-index: 90;
+    background-color: #ffffff !important;
+}
+
+/* 3. Nivo: Zaglavlje kontova unutar fonda */
+.konto-header-red {
+    position: sticky;
+    top: 90px; /* Glavno zaglavlje + fond red */
+    z-index: 80;
+    background-color: #d1e7ed !important;
+}
+
+/* 4. Nivo: Zaglavlje stavki unutar konta */
+.stavke-header {
+    position: sticky;
+    top: 135px; /* Kumulativna visina svega iznad */
+    z-index: 70;
+    background-color: #ecf0f1 !important;
+}
+
+/* Stilovi za ćelije i ivice */
+th, td { 
+    border: 1px solid #ddd; 
+    padding: 10px; 
+    text-align: left; 
+}
+
+.fond-glavni-red td, .konto-header-red th, .stavke-header th {
+    border-bottom: 2px solid #ccc !important;
+}
+
+/* Ostali pomoćni stilovi */
+.forma { background: #f4f4f4; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ccc; }
+.btn-obrisi { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
+.excel-sekcija { background: #e2f3f5; border: 1px solid #adc5cf; }
+
+.badge-stornirano { color: #d9534f; font-weight: bold; }
+.badge-placeno { color: #5cb85c; font-weight: bold; }
 
 .sredstva-celija {
     cursor: pointer;
-    background-color: #fffdf0; /* Blaga žuta boja da se razlikuje */
+    background-color: #fffdf0;
     font-weight: bold;
-    transition: background 0.2s;
 }
 
-.sredstva-celija:hover {
-    background-color: #fdf5bc;
-    text-decoration: underline;
+/* ... tvoj postojeći CSS ... */
+
+/* 1. Nivo: Glavno zaglavlje tabele */
+thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.4);
 }
 
-/* Stil za kontejner stavki koji se otvara */
-.stavke-detalji-row {
-    background-color: #fcfcfc;
+/* 2. Nivo: Glavni red fonda */
+.fond-glavni-red {
+    position: sticky;
+    top: 45px; 
+    z-index: 90;
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #ddd !important;
 }
 
-.stavke-wrapper {
-    padding: 15px;
-    border: 1px dashed #3498db;
-    margin: 10px;
-    border-radius: 5px;
+/* 3. Nivo: Red konta koji je kliknut (DA OSTANE NA VRHU) */
+.konto-red-otvoren {
+    position: sticky;
+    top: 90px; /* Ispod glavnog zaglavlja i fonda */
+    z-index: 85;
+    background-color: #d1e7ed !important; /* Istaknuta boja za konto */
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-.tabela-stavki-unutrasnja {
-    width: 100%;
-    font-size: 0.9em;
-    border-collapse: collapse;
-    background: white;
-}
-
-.tabela-stavki-unutrasnja th {
-    background-color: #ecf0f1;
-    color: #333;
-    border: 1px solid #ddd;
-}
-
-.tabela-stavki-unutrasnja td {
-    border: 1px solid #ddd;
+/* 4. Nivo: Zaglavlje stavki (Artikal, Račun...) */
+.stavke-header th {
+    position: sticky;
+    top: 135px; 
+    z-index: 80;
+    background-color: #ecf0f1 !important;
+    border-bottom: 2px solid #999 !important;
 }
