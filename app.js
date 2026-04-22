@@ -104,67 +104,67 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
 
         sveStavke.forEach(s => {
             // 1. KORAK: Fond (INSERT IGNORE)
-db.query(
-    "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
-    [s.ime_fonda, s.godina],
-    (err) => {
-        if (err) {
-            console.error("Greška kod fonda:", err);
-            greske++; proveriKraj(); return;
-        }
-
-        const nazivKonta = s.konto;
-
-        // 2. KORAK: Konto (Koristimo tvoje UNIQUE ograničenje)
-        // INSERT IGNORE će preskočiti upis ako konto već postoji
-        db.query(
-            "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
-            [s.ime_fonda, s.godina, nazivKonta],
-            (errKonto) => {
-                if (errKonto) {
-                    console.error("Greška kod konta:", errKonto);
-                    greske++; proveriKraj(); return;
-                }
-
-                // 3. KORAK: Uzmi ID (Sada je sigurno unutra)
-                db.query(
-                    "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
-                    [s.ime_fonda, s.godina, nazivKonta],
-                    (errSelect, rezultati) => {
-                        if (errSelect || rezultati.length === 0) {
-                            console.error("Neuspešno pronalaženje ID-a konta");
-                            greske++; proveriKraj(); return;
-                        }
-
-                        const aktuelniKontoId = rezultati[0].id;
-
-                        // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
-                        const sqlStavka = `INSERT INTO stavke 
-                            (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
-                            kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                            status_placanja, datum_placanja) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-                        const paramsStavka = [
-                            aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
-                            s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                            s.status, formatirajZaBazu(s.datumPla)
-                        ];
-
-                        db.query(sqlStavka, paramsStavka, (errStavka) => {
-                            if (errStavka){
-                                 console.error("Greška kod stavke:", errStavka);
-                                 greske++;
-
-                            } else obradjeno++;
-                            proveriKraj();
-                        });
+            db.query(
+                "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
+                [s.ime_fonda, s.godina],
+                (err) => {
+                    if (err) {
+                        console.error("Greška kod fonda:", err);
+                        greske++; proveriKraj(); return;
                     }
-                );
-            }
-        );
-    }
-);
+
+                    const nazivKonta = s.konto;
+
+                    // 2. KORAK: Konto (Koristimo tvoje UNIQUE ograničenje)
+                    // INSERT IGNORE će preskočiti upis ako konto već postoji
+                    db.query(
+                        "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
+                        [s.ime_fonda, s.godina, nazivKonta],
+                        (errKonto) => {
+                            if (errKonto) {
+                                console.error("Greška kod konta:", errKonto);
+                                greske++; proveriKraj(); return;
+                            }
+
+                            // 3. KORAK: Uzmi ID (Sada je sigurno unutra)
+                            db.query(
+                                "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
+                                [s.ime_fonda, s.godina, nazivKonta],
+                                (errSelect, rezultati) => {
+                                    if (errSelect || rezultati.length === 0) {
+                                        console.error("Neuspešno pronalaženje ID-a konta");
+                                        greske++; proveriKraj(); return;
+                                    }
+
+                                    const aktuelniKontoId = rezultati[0].id;
+
+                                    // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
+                                    const sqlStavka = `INSERT INTO stavke 
+                                        (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
+                                        kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                                        status_placanja, datum_placanja) 
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                                    const paramsStavka = [
+                                        aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
+                                        s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
+                                        s.status, formatirajZaBazu(s.datumPla)
+                                    ];
+
+                                    db.query(sqlStavka, paramsStavka, (errStavka) => {
+                                        if (errStavka){
+                                            console.error("Greška kod stavke:", errStavka);
+                                            greske++;
+
+                                        } else obradjeno++;
+                                        proveriKraj();
+                                    });
+                                }
+                            );
+                        }
+                    );
+                }
+            );
             
         });
 
