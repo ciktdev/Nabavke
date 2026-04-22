@@ -21,7 +21,7 @@ const izvuciPodatkeIzExcela = (files) => {
             const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
             
             let kolone = { 
-                datum: -1, izvor: -1, artikal: -1, racun: -1, 
+                konto: -1, datum: -1, izvor: -1, artikal: -1, racun: -1, 
                 kol: -1, cenaBez: -1, cenaSa: -1, 
                 vrednostBez: -1, vrednostSa: -1, 
                 status: -1, datumPla: -1 
@@ -52,9 +52,9 @@ const izvuciPodatkeIzExcela = (files) => {
                     kolone.vrednostSa = red.findIndex(c => (c.includes(('vrednost sa') || c.includes('vred.')) && !c.includes('nerealizovan')));
                     kolone.status = red.findIndex(c => c.includes('status') || c.includes('status'));
                     kolone.datumPla = red.findIndex(c => (c.includes('datum placa') || c.includes('datum plaća')));
-
+                    kolone.konto = red.findIndex(c => (c.includes('konto')));
                     startniRed = i + 1;
-                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}`);
+                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}, ${kolone.konto}`);
                     console.log(red);
                     break;
                 }
@@ -101,7 +101,8 @@ const izvuciPodatkeIzExcela = (files) => {
                             vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
                             vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
                             status: red[kolone.status] || null,
-                            datumPla: red[kolone.datumPla] || null
+                            datumPla: red[kolone.datumPla] || null,
+                            konto: red[kolone.konto]
                         });
 
                         console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);

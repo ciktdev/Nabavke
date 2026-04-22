@@ -103,42 +103,69 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         };
 
         sveStavke.forEach(s => {
-            // 1. Prvo osiguravamo da fond postoji u tabeli 'fond'
-            db.query(
-                "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
-                [s.ime_fonda, s.godina],
-                (err) => {
-                    if (err) {
-                        console.error("Greška pri unosu fonda:", err);
-                        greske++;
-                        proveriKraj();
-                        return;
-                    }
+            // 1. KORAK: Fond (INSERT IGNORE)
+db.query(
+    "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
+    [s.ime_fonda, s.godina],
+    (err) => {
+        if (err) {
+            console.error("Greška kod fonda:", err);
+            greske++; proveriKraj(); return;
+        }
 
-                    // 2. Ubacujemo stavku u tabelu 'stavke'
-                    const sqlStavka = `INSERT INTO stavke 
-                        (datum_nabavke, godina, br_racuna, izvor_finansiranja, naziv_artikla, 
-                         kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                         status_placanja, datum_placanja) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const nazivKonta = s.konto;
 
-                    const paramsStavka = [
-                        formatirajZaBazu(s.datum), s.godina, s.br_racuna, s.ime_fonda, s.artikal,
-                        s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                        s.status, formatirajZaBazu(s.datumPla)
-                    ];
-
-                    db.query(sqlStavka, paramsStavka, (errStavka) => {
-                        if (errStavka) {
-                            console.error("Greška pri unosu stavke:", errStavka);
-                            greske++;
-                        } else {
-                            obradjeno++;
-                        }
-                        proveriKraj();
-                    });
+        // 2. KORAK: Konto (Koristimo tvoje UNIQUE ograničenje)
+        // INSERT IGNORE će preskočiti upis ako konto već postoji
+        db.query(
+            "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
+            [s.ime_fonda, s.godina, nazivKonta],
+            (errKonto) => {
+                if (errKonto) {
+                    console.error("Greška kod konta:", errKonto);
+                    greske++; proveriKraj(); return;
                 }
-            );
+
+                // 3. KORAK: Uzmi ID (Sada je sigurno unutra)
+                db.query(
+                    "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
+                    [s.ime_fonda, s.godina, nazivKonta],
+                    (errSelect, rezultati) => {
+                        if (errSelect || rezultati.length === 0) {
+                            console.error("Neuspešno pronalaženje ID-a konta");
+                            greske++; proveriKraj(); return;
+                        }
+
+                        const aktuelniKontoId = rezultati[0].id;
+
+                        // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
+                        const sqlStavka = `INSERT INTO stavke 
+                            (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
+                            kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                            status_placanja, datum_placanja) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                        const paramsStavka = [
+                            aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
+                            s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
+                            s.status, formatirajZaBazu(s.datumPla)
+                        ];
+
+                        db.query(sqlStavka, paramsStavka, (errStavka) => {
+                            if (errStavka){
+                                 console.error("Greška kod stavke:", errStavka);
+                                 greske++;
+
+                            } else obradjeno++;
+                            proveriKraj();
+                        });
+                    }
+                );
+            }
+        );
+    }
+);
+            
         });
 
         function proveriKraj() {
