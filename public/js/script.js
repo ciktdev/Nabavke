@@ -163,21 +163,26 @@ async function prikaziStavkeKonta(kontoId) {
             <table style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
                 <thead>
                     <tr class="stavke-header">
+                        <th>Datum nabavke</th>
                         <th>Artikal</th>
                         <th>Račun</th>
                         <th>Vrednost sa PDV</th>
                         <th>Status</th>
+                        <th>Datum placanja</th>
                     </tr>
                 </thead>
                 <tbody>`;
         
         stavke.forEach(s => {
+            console.log(s)
             html += `
                 <tr style="border-bottom: 1px solid #eee;">
+                    <td>${s.datum_nabavke.split('T')[0]}</td>
                     <td>${s.naziv_artikla}</td>
                     <td>${s.br_racuna}</td>
                     <td>${s.vred_sa_pdv}</td>
                     <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
+                    <td>${s.datum_placanja?.slice(0, 10) || null}</td>
                 </tr>`;
         });
         container.innerHTML = html + `</tbody></table>`;
