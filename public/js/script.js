@@ -103,41 +103,59 @@ async function prikaziKonta(fondId) {
     }
 
     row.style.display = 'table-row';
-    container.innerHTML = 'Učitavanje kontova...';
+    container.innerHTML = 'Učitavanje...';
 
     try {
         const response = await fetch(`/api/fond/${fondId}/kontovi`);
         const kontovi = await response.json();
 
+        // Pronalazimo glavni red fonda iznad ovog expand reda
+        const glavniRed = document.querySelector(`tr[onclick*="prikaziKonta('${fondId}')"]`);
+        
+        // TAČNI INDEKSI PREMA TVOJOJ SLICI:
+        // cells[1] je Godina, cells[2] je Ime fonda
+        const fGodina = glavniRed.cells[1].innerText.trim();
+        const fIme = glavniRed.cells[2].innerText.trim();
+
         let html = `
+            <div style="background: #f0f4f7; padding: 15px; margin-bottom: 15px; border: 1px solid #cfe2e9; border-radius: 4px; display: flex; gap: 10px; align-items: center;">
+                <span style="font-weight: bold;">Novi konto za ${fIme} (${fGodina}):</span>
+                <input type="text" id="novo-ime-konta-${fondId}" placeholder="npr. 421111" style="width: 120px; padding: 5px;">
+                <input type="number" id="nova-sredstva-konta-${fondId}" placeholder="Sredstva" value="0" style="width: 100px; padding: 5px;">
+                <button onclick="rucnoDodajKonto('${fondId}', '${fIme}', '${fGodina}')" style="padding: 5px 10px; cursor: pointer;">
+                    + Kreiraj
+                </button>
+            </div>
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr class="konto-header-red">
-                        <th>Konto</th>
-                        <th>Planirano</th>
-                        <th>Utrošeno</th>
-                        <th>Dostupno</th>
+                        <th>Konto</th><th>Planirano</th><th>Utrošeno</th><th>Dostupno</th>
                     </tr>
                 </thead>
                 <tbody>`;
 
-        kontovi.forEach(k => {
-            html += `
-                <tr id="konto-glavni-${k.id}" style="border-bottom: 1px solid #ccc; cursor: pointer;" 
-                    onclick="event.stopPropagation(); prikaziStavkeKonta('${k.id}')">
-                    <td><strong>${k.ime_konta}</strong></td>
-                    <td>${k.sredstva}</td>
-                    <td>${k.utrosena_sredstva}</td>
-                    <td style="color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'}">${k.dostupna_sredstva}</td>
-                </tr>
-                <tr id="konto-expand-${k.id}" style="display: none;">
-                    <td colspan="4">
-                        <div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div>
-                    </td>
-                </tr>`;
-        });
+        if (kontovi.length === 0) {
+            html += `<tr><td colspan="4" style="text-align: center; padding: 10px;">Nema kontova. Unesite prvi iznad.</td></tr>`;
+        } else {
+            kontovi.forEach(k => {
+                html += `
+                    <tr id="konto-glavni-${k.id}" style="border-bottom: 1px solid #ccc; cursor: pointer;" 
+                        onclick="event.stopPropagation(); prikaziStavkeKonta('${k.id}')">
+                        <td><strong>${k.ime_konta}</strong></td>
+                        <td>${k.sredstva}</td>
+                        <td style="color: #d9534f;">${k.utrosena_sredstva}</td>
+                        <td style="font-weight: bold; color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'};">${k.dostupna_sredstva}</td>
+                    </tr>
+                    <tr id="konto-expand-${k.id}" style="display: none;">
+                        <td colspan="4"><div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div></td>
+                    </tr>`;
+            });
+        }
         container.innerHTML = html + `</tbody></table>`;
-    } catch (e) { container.innerHTML = "Greška pri učitavanju."; }
+    } catch (e) { 
+        console.error(e);
+        container.innerHTML = "Greška pri učitavanju podataka."; 
+    }
 }
 
 async function prikaziStavkeKonta(kontoId) {
@@ -189,3 +207,33 @@ async function prikaziStavkeKonta(kontoId) {
     } catch (e) { container.innerHTML = "Greška."; }
 }
 
+async function rucnoDodajKonto(fondId, imeFonda, godinaFonda) {
+    const imeKonta = document.getElementById(`novo-ime-konta-${fondId}`).value;
+    const sredstva = document.getElementById(`nova-sredstva-konta-${fondId}`).value;
+
+    if (!imeKonta) return alert("Morate uneti naziv ili broj konta.");
+
+    try {
+        const response = await fetch('/dodaj-konto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fond_ime: imeFonda,
+                fond_godina: godinaFonda,
+                ime_konta: imeKonta,
+                sredstva: sredstva
+            })
+        });
+
+        const rezultat = await response.json();
+        if (rezultat.success) {
+            alert(rezultat.message);
+            // Osveži prikaz kontova za taj fond bez reloada cele stranice
+            prikaziKonta(fondId); 
+        } else {
+            alert(rezultat.message);
+        }
+    } catch (err) {
+        alert("Greška pri komunikaciji sa serverom.");
+    }
+}

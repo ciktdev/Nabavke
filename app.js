@@ -260,6 +260,23 @@ app.get('/api/konto/:id/stavke', (req, res) => {
     });
 });
 
+// Ruta za ručno dodavanje konta u određeni fond
+app.post('/dodaj-konto', (req, res) => {
+    const { fond_ime, fond_godina, ime_konta, sredstva } = req.body;
+    
+    const sql = "INSERT INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, ?)";
+    
+    db.query(sql, [fond_ime, fond_godina, ime_konta, sredstva || 0], (err, result) => {
+        if (err) {
+            if (err.code === 'ER_DUP_ENTRY') {
+                return res.json({ success: false, message: "Ovaj konto već postoji u ovom fondu!" });
+            }
+            return res.json({ success: false, message: "Greška u bazi: " + err.message });
+        }
+        res.json({ success: true, message: "Konto uspešno kreiran!" });
+    });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server je pokrenut na http://localhost:${PORT}`);
