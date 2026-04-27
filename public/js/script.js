@@ -120,7 +120,9 @@ async function prikaziKonta(fondId) {
         let html = `
             <div style="background: #f0f4f7; padding: 15px; margin-bottom: 15px; border: 1px solid #cfe2e9; border-radius: 4px; display: flex; gap: 10px; align-items: center;">
                 <span style="font-weight: bold;">Novi konto za ${fIme} (${fGodina}):</span>
+                <span>Ime:</span>
                 <input type="text" id="novo-ime-konta-${fondId}" placeholder="npr. 421111" style="width: 120px; padding: 5px;">
+                <span>Planirano:</span>
                 <input type="number" id="nova-sredstva-konta-${fondId}" placeholder="Sredstva" value="0" style="width: 100px; padding: 5px;">
                 <button onclick="rucnoDodajKonto('${fondId}', '${fIme}', '${fGodina}')" style="padding: 5px 10px; cursor: pointer;">
                     + Kreiraj
