@@ -89,9 +89,7 @@
                 <td><strong><%= fond.godina %></strong></td>
                 <td><strong><%= fond.ime %></strong></td>
                 
-                <td class="sredstva-celija" 
-                    onclick="event.stopPropagation(); izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')" 
-                    title="Klikni da izmeniš iznos">
+                <td class="sredstva-celija" onclick="izmeniSredstva('<%= fond.id %>', '<%= fond.ime_fonda %>', '<%= fond.sredstva %>')">
                     <span id="iznos-<%= fond.id %>"><%= fond.sredstva %></span>
                 </td>
                 

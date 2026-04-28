@@ -106,3 +106,21 @@ thead th {
     background-color: #ecf0f1 !important;
     border-bottom: 2px solid #999 !important;
 }
+
+/* Efekat za ceo red kada se pređe mišem */
+tbody tr:hover {
+    background-color: #f2f2f2 !important; /* Svetlo siva za ceo red */
+    transition: background-color 0.2s ease;
+}
+
+/* Poseban efekat za ćelije koje mogu da se menjaju (sredstva/planirano) */
+.sredstva-celija:hover {
+    background-color: #e0e0e0 !important; /* Tamnije siva za specifično polje */
+    cursor: pointer; /* Menja kursor u "ruku" */
+}
+
+/* Opciono: Ako želiš da polje "Sredstva" u glavnoj tabeli fondova ima isti efekat */
+.fond-sredstva:hover {
+    background-color: #e0e0e0 !important;
+    cursor: pointer;
+}
