@@ -277,6 +277,26 @@ app.post('/dodaj-konto', (req, res) => {
     });
 });
 
+app.post('/azuriraj-sredstva-konta', (req, res) => {
+    const { id, sredstva, lozinka } = req.body;
+    const TAJNA_LOZINKA = "moja_tajna_lozinka";
+
+    if (lozinka !== TAJNA_LOZINKA) {
+        return res.status(403).json({ success: false, message: "Pogrešna lozinka!" });
+    }
+
+    const sql = "UPDATE konto SET sredstva = ? WHERE id = ?";
+    db.query(sql, [sredstva, id], (err, result) => {
+        if (err) {
+            console.error("Greška u bazi:", err);
+            return res.status(500).json({ success: false, message: "Baza podataka nije prihvatila izmenu." });
+        }
+        
+        // Tek kada baza potvrdi uspeh, šaljemo odgovor klijentu
+        res.json({ success: true });
+    });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server je pokrenut na http://localhost:${PORT}`);
