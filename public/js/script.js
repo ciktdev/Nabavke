@@ -92,13 +92,33 @@ function izmeniSredstva(id, ime, trenutnaVrednost) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                document.getElementById(`iznos-${id}`).innerText = noviIznos;
-                alert("Uspešno ažurirano!");
-            } else {
-                alert("Greška: " + data.message);
-            }
-        });
+                // Tražimo red fonda. 
+                // Koristimo querySelector da nađemo red koji u sebi ima onclick sa tvojim ID-em
+                const red = document.querySelector(`tr[onclick*="prikaziKonta('${id}')"]`);
+            
+                if (red) {
+                    // 1. Ažuriramo kolonu "Sredstva (Planirano)"
+                    // Prema slici to je cells[2]
+                    red.cells[2].innerText = formatirajBroj(data.podaci.sredstva);
+                    red.cells[2].style.fontWeight = 'bold';
+
+                    // 2. Ažuriramo kolonu "Dostupno"
+                    // Prema slici to je cells[4] (pre Akcija)
+                    red.cells[4].innerText = formatirajBroj(data.podaci.dostupna_sredstva);
+            
+                    // Boja i stil za Dostupno
+                    red.cells[4].style.color = data.podaci.dostupna_sredstva < 0 ? 'red' : 'green';
+                    red.cells[4].style.fontWeight = 'bold';
+
+                    // 3. Čistimo kolonu "Akcije" (cells[5]) ako je JS tu nešto pogrešno upisao
+                    // Ovde ne diraj ništa osim ako ne vidiš da ti je JS obrisao kanticu
+                }
+            alert("Uspešno ažurirano!");
+    } else {
+        alert("Greška: " + data.message);
     }
+}); 
+}
 }
 
 async function prikaziKonta(fondId) {
@@ -120,8 +140,8 @@ async function prikaziKonta(fondId) {
         const glavniRed = document.querySelector(`tr[onclick*="prikaziKonta('${fondId}')"]`);
         
         // Indeksi prema tvojoj tabeli: ID(0), Godina(1), Ime(2)
-        const fGodina = glavniRed.cells[1].innerText.trim();
-        const fIme = glavniRed.cells[2].innerText.trim();
+        const fGodina = glavniRed.cells[0].innerText.trim();
+        const fIme = glavniRed.cells[1].innerText.trim();
 
         let html = `
             <div style="background: #f0f4f7; padding: 15px; margin-bottom: 15px; border: 1px solid #cfe2e9; border-radius: 4px; display: flex; gap: 10px; align-items: center;">
@@ -146,12 +166,6 @@ async function prikaziKonta(fondId) {
         if (kontovi.length === 0) {
             html += `<tr><td colspan="4" style="text-align: center; padding: 10px;">Nema kontova. Unesite prvi iznad.</td></tr>`;
         } else {
-            function formatirajBroj(broj) {
-                return parseFloat(broj).toLocaleString('sr-RS', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
             kontovi.forEach(k => {
                 html += `
                     <tr id="konto-glavni-${k.id}" style="border-bottom: 1px solid #ccc; cursor: pointer;" 
@@ -228,34 +242,34 @@ async function prikaziStavkeKonta(kontoId) {
     } catch (e) { container.innerHTML = "Greška."; }
 }
 
-async function rucnoDodajKonto(fondId, imeFonda, godinaFonda) {
+async function rucnoDodajKonto(fondId, fondIme, fondGodina) {
     const imeKonta = document.getElementById(`novo-ime-konta-${fondId}`).value;
     const sredstva = document.getElementById(`nova-sredstva-konta-${fondId}`).value;
 
-    if (!imeKonta) return alert("Morate uneti naziv ili broj konta.");
+    if (!imeKonta) return alert("Unesite broj konta!");
 
     try {
         const response = await fetch('/dodaj-konto', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fond_ime: imeFonda,
-                fond_godina: godinaFonda,
-                ime_konta: imeKonta,
-                sredstva: sredstva
+            // OVDE MENJAŠ: Ključevi (levo) moraju biti kao u bazi
+            body: JSON.stringify({ 
+                fond_ime: fondIme, 
+                fond_godina: fondGodina, 
+                ime_konta: imeKonta, 
+                sredstva: sredstva 
             })
         });
-
-        const rezultat = await response.json();
-        if (rezultat.success) {
-            alert(rezultat.message);
-            // Osveži prikaz kontova za taj fond bez reloada cele stranice
-            prikaziKonta(fondId); 
+        
+        const data = await response.json();
+        if (data.success) {
+            window.location.reload(); 
         } else {
-            alert(rezultat.message);
+            alert("Greška: " + data.message);
         }
-    } catch (err) {
-        alert("Greška pri komunikaciji sa serverom.");
+    } catch (e) {
+        console.error(e);
+        alert("Greška na mreži.");
     }
 }
 

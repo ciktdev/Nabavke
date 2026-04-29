@@ -14,12 +14,12 @@ app.use(express.json()); // BITNO: da bi server mogao da čita JSON
 app.use(express.static('public'));
 // --- RUTE ---
 
-// 1. Glavna ruta sa prikazom i filtriranjem
+// 1. Glavna ruta sa prikazom i filtriranjem (Ažurirana verzija)
 app.get('/', (req, res) => {
     // 1. Prihvatamo parametre za filtere i sortiranje
     const filteri = {
         pretraga: req.query.pretraga || '',
-        status: req.query.status || '',
+        // Izbacili smo status jer više ne postoji u tabeli fond
         godina: req.query.godina || '',
         sort_by: req.query.sort_by || 'id', // Podrazumevano po ID-u
         order: req.query.order === 'desc' ? 'desc' : 'asc' // Podrazumevano ASC
@@ -30,27 +30,28 @@ app.get('/', (req, res) => {
 
     // 2. Logika filtriranja
     if (filteri.pretraga) {
+        // Proveri da li se tvoja kolona zove 'ime' ili 'ime_fonda' (u prethodnim porukama je bila ime_fonda)
         sql += " AND ime LIKE ?";
         params.push(`%${filteri.pretraga}%`);
     }
-    if (filteri.status) {
-        sql += " AND status = ?";
-        params.push(filteri.status);
-    }
+    
     if (filteri.godina) {
         sql += " AND godina = ?";
         params.push(filteri.godina);
     }
 
     // 3. DINAMIČKI ORDER BY
-    // Dozvoljavamo samo određene kolone zbog sigurnosti (SQL injection zaštita)
-    const dozvoljeneKolone = ['id', 'ime', 'godina', 'sredstva', 'status'];
+    // Ažurirane dozvoljene kolone: dodate utrosena_sredstva i dostupna_sredstva, izbačen status
+    const dozvoljeneKolone = ['id', 'ime', 'godina', 'sredstva', 'utrosena_sredstva', 'dostupna_sredstva'];
     const sortirajPo = dozvoljeneKolone.includes(filteri.sort_by) ? filteri.sort_by : 'id';
     
     sql += ` ORDER BY ${sortirajPo} ${filteri.order.toUpperCase()}`;
 
     db.query(sql, params, (err, results) => {
-        if (err) return res.status(500).send("Greška u bazi: " + err.message);
+        if (err) {
+            console.error("Greška pri učitavanju fondova:", err);
+            return res.status(500).send("Greška u bazi: " + err.message);
+        }
         
         res.render('index', { 
             fondovi: results, 
@@ -103,70 +104,62 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         };
 
         sveStavke.forEach(s => {
-            // 1. KORAK: Fond (INSERT IGNORE)
+            // KORAK 1: Upis u fond (Kolona se zove 'ime', a ne 'ime_fonda')
+            console.log(s)
             db.query(
-                "INSERT IGNORE INTO fond (ime, godina, sredstva, status) VALUES (?, ?, 0, 'a')",
-                [s.ime_fonda, s.godina],
+                "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
+                [s.ime_fonda, s.godina], // s.ime_fonda dolazi iz Excel servisa
                 (err) => {
-                    if (err) {
-                        console.error("Greška kod fonda:", err);
-                        greske++; proveriKraj(); return;
-                    }
+                    if (err) { greske++; proveriKraj(); return; }
 
                     const nazivKonta = s.konto;
-
-                    // 2. KORAK: Konto (Koristimo tvoje UNIQUE ograničenje)
-                    // INSERT IGNORE će preskočiti upis ako konto već postoji
+                    // KORAK 2: Upis u konto
                     db.query(
                         "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
                         [s.ime_fonda, s.godina, nazivKonta],
                         (errKonto) => {
-                            if (errKonto) {
-                                console.error("Greška kod konta:", errKonto);
-                                greske++; proveriKraj(); return;
-                            }
+                            if (errKonto) { greske++; console.error(errKonto.message); proveriKraj(); return; }
 
-                            // 3. KORAK: Uzmi ID (Sada je sigurno unutra)
+                            // KORAK 3: Pronalaženje ID-a konta (FIX za sliku image_b384da.png)
                             db.query(
                                 "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
                                 [s.ime_fonda, s.godina, nazivKonta],
                                 (errSelect, rezultati) => {
                                     if (errSelect || rezultati.length === 0) {
-                                        console.error("Neuspešno pronalaženje ID-a konta");
+                                        console.error("Neuspešno pronalaženje ID-a konta", s.ime_fonda, s.konto);
                                         greske++; proveriKraj(); return;
                                     }
 
-                                    const aktuelniKontoId = rezultati[0].id;
+                                            const aktuelniKontoId = rezultati[0].id;
+                                            // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
+                                            const sqlStavka = `INSERT INTO stavke 
+                                                (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
+                                                kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                                                status_placanja, datum_placanja) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-                                    // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
-                                    const sqlStavka = `INSERT INTO stavke 
-                                        (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
-                                        kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                                        status_placanja, datum_placanja) 
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                                            const paramsStavka = [
+                                                aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
+                                                s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
+                                                s.status, formatirajZaBazu(s.datumPla)
+                                            ];
 
-                                    const paramsStavka = [
-                                        aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
-                                        s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                                        s.status, formatirajZaBazu(s.datumPla)
-                                    ];
+                                            db.query(sqlStavka, paramsStavka, (errStavka) => {
+                                                if (errStavka){
+                                                    console.error("Greška kod stavke:", errStavka);
+                                                    greske++;
 
-                                    db.query(sqlStavka, paramsStavka, (errStavka) => {
-                                        if (errStavka){
-                                            console.error("Greška kod stavke:", errStavka);
-                                            greske++;
-
-                                        } else obradjeno++;
-                                        proveriKraj();
-                                    });
+                                                } else obradjeno++;
+                                                proveriKraj();
+                                            });
+                                        }
+                                    );
                                 }
                             );
                         }
                     );
-                }
-            );
             
-        });
+                });
 
         function proveriKraj() {
             if (obradjeno + greske === sveStavke.length) {
@@ -185,10 +178,10 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
 
 // 2. Ručno dodavanje fonda
 app.post('/dodaj', (req, res) => {
-    const { ime, sredstva, status, godina } = req.body;
-    const sql = "INSERT INTO fond (ime, sredstva, status, godina) VALUES (?, ?, ?, ?)";
+    const { ime, sredstva, godina } = req.body;
+    const sql = "INSERT INTO fond (ime, sredstva, godina) VALUES (?, ?, ?)";
 
-    db.query(sql, [ime, sredstva, status, godina], (err) => {
+    db.query(sql, [ime, sredstva, godina], (err) => {
         if (err) {
             if (err.code === 'ER_DUP_ENTRY') {
                 return res.send(`<script>alert('Greška: Fond ${ime} već postoji za ${godina}. godinu!'); window.location='/';</script>`);
@@ -217,22 +210,25 @@ app.post('/obrisi', (req, res) => {
 });
 
 // Dodaj ovo negde sa ostalim rutama (npr. ispod /dodaj)
-app.post('/azuriraj-sredstva', express.json(), (req, res) => {
+app.post('/azuriraj-sredstva', (req, res) => {
     const { id, sredstva, lozinka } = req.body;
-    const TAJNA_LOZINKA = "moja_tajna_lozinka"; // Postavi svoju lozinku
+    if (lozinka !== 'moja_tajna_lozinka') return res.json({ success: false, message: 'Pogrešna lozinka' });
 
-    if (lozinka !== TAJNA_LOZINKA) {
-        return res.json({ success: false, message: "Pogrešna lozinka!" });
-    }
+    const sqlUpdate = "UPDATE fond SET sredstva = ? WHERE id = ?";
+    db.query(sqlUpdate, [sredstva, id], (err) => {
+        if (err) return res.json({ success: false, message: 'Greška u bazi' });
 
-    const sql = "UPDATE fond SET sredstva = ? WHERE id = ?";
-    db.query(sql, [sredstva, id], (err, result) => {
-        if (err) {
-            return res.json({ success: false, message: "Greška u bazi podataka." });
-        }
-        
-        upisiULog("IZMENA SREDSTAVA", { id, noviIznos: sredstva });
-        res.json({ success: true });
+        // KLJUČNI DEO: Nakon update-a, odmah čitamo novo stanje
+        const sqlSelect = "SELECT sredstva, utrosena_sredstva, dostupna_sredstva FROM fond WHERE id = ?";
+        db.query(sqlSelect, [id], (err, results) => {
+            if (err) return res.json({ success: false, message: 'Greška pri čitanju' });
+            
+            // Šaljemo nazad prave brojeve iz baze
+            res.json({ 
+                success: true, 
+                podaci: results[0] 
+            });
+        });
     });
 });
 
@@ -262,14 +258,20 @@ app.get('/api/konto/:id/stavke', (req, res) => {
 
 // Ruta za ručno dodavanje konta u određeni fond
 app.post('/dodaj-konto', (req, res) => {
+    // Ovde hvatamo tačna imena koja šalje script.js
     const { fond_ime, fond_godina, ime_konta, sredstva } = req.body;
     
+    // Provera da li su podaci stigli kako treba
+    console.log("Dodajem konto:", { fond_ime, fond_godina, ime_konta });
+
     const sql = "INSERT INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, ?)";
     
+    // PAZI: Redosled u [ ] mora biti identičan redosledu upitnika u SQL-u!
     db.query(sql, [fond_ime, fond_godina, ime_konta, sredstva || 0], (err, result) => {
         if (err) {
+            console.error("Greška u bazi:", err.message);
             if (err.code === 'ER_DUP_ENTRY') {
-                return res.json({ success: false, message: "Ovaj konto već postoji u ovom fondu!" });
+                return res.json({ success: false, message: "Ovaj konto već postoji!" });
             }
             return res.json({ success: false, message: "Greška u bazi: " + err.message });
         }

@@ -15,10 +15,6 @@
             <input type="text" name="ime" placeholder="Izvor finansiranja" required>
             <input type="number" name="sredstva" placeholder="Iznos" required>
             <input type="number" name="godina" value="<%= new Date().getFullYear() %>" placeholder="Godina" required>
-            <select name="status">
-                <option value="a">Aktivan (a)</option>
-                <option value="p">Pasivan (p)</option>
-            </select>
             <button type="submit">Dodaj fond</button>
         </form>
     </div>
@@ -48,12 +44,6 @@
             
             <input type="number" name="godina" placeholder="Godina" value="<%= filteri.godina || '' %>" style="width: 80px;">
 
-            <select name="status">
-                <option value="">Svi statusi</option>
-                <option value="a" <%= filteri.status === 'a' ? 'selected' : '' %>>Aktivan</option>
-                <option value="p" <%= filteri.status === 'p' ? 'selected' : '' %>>Pasivan</option>
-            </select>
-            
             <button type="submit">Filtriraj</button>
             <a href="/" style="margin-left: 10px; text-decoration: none; color: #666;">Poništi</a>
         </form>
@@ -63,49 +53,58 @@
         <thead>
             <tr>
                 <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=id&order=<%= (filteri.sort_by === 'id' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
-                        ID <%= filteri.sort_by === 'id' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
-                    </a>
-                </th>
-                <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=godina&order=<%= (filteri.sort_by === 'godina' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=godina&order=<%= (filteri.sort_by === 'godina' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
                         Godina <%= filteri.sort_by === 'godina' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
                     </a>
                 </th>
                 <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&status=<%= filteri.status %>&sort_by=ime&order=<%= (filteri.sort_by === 'ime' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=ime&order=<%= (filteri.sort_by === '' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
                         Ime fonda <%= filteri.sort_by === 'ime' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
                     </a>
                 </th>
-                <th>Sredstva</th>
-                <th>Status</th>
+                <th>
+                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=sredstva&order=<%= (filteri.sort_by === 'sredstva' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
+                        Sredstva (Planirano) <%= filteri.sort_by === 'sredstva' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
+                    </a>
+                </th>
+                
+                <th>Utrošeno (Suma kontova)</th>
+                <th>Dostupno</th>
+                
                 <th>Akcije</th>
             </tr>
         </thead>
         <tbody>
         <% fondovi.forEach(fond => { %>
             <tr class="fond-glavni-red" style="cursor: pointer;" onclick="prikaziKonta('<%= fond.id %>')">
-                <td><%= fond.id %></td>
-                <td><strong><%= fond.godina %></strong></td>
-                <td><strong><%= fond.ime %></strong></td>
+                <td><strong><%= fond.godina %></strong> </td>
+                <td><strong><%= fond.ime %></strong> </td>
                 
-                <td class="sredstva-celija" onclick="izmeniSredstva('<%= fond.id %>', '<%= fond.ime_fonda %>', '<%= fond.sredstva %>')">
-                    <span id="iznos-<%= fond.id %>"><%= fond.sredstva %></span>
+                <td class="sredstva-celija" onclick="event.stopPropagation(); izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')">
+                    <span id="iznos-<%= fond.id %>">
+                        <%= Number(fond.sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    </span> 
                 </td>
                 
-                <td><%= fond.status === 'a' ? '✅ Aktivan' : '❌ Pasivan' %></td>
+                <td style="color: #d9534f;">
+                    <%= Number(fond.utrosena_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                </td>
+                
+                <td style="font-weight: bold; color: <%= fond.dostupna_sredstva < 0 ? 'red' : 'green' %>">
+                   <%= Number(fond.dostupna_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                </td>
                 
                 <td>
                     <button class="btn-obrisi" onclick="event.stopPropagation(); potvrdiBrisanje('<%= fond.id %>', '<%= fond.ime %>')">
                         🗑️
-                    </button>
+                    </button> 
                 </td>
             </tr>
 
             <tr id="fond-expand-<%= fond.id %>" class="fond-expand-red" style="display: none;">
                 <td colspan="6">
                     <div id="lista-konta-<%= fond.id %>" style="padding: 15px; border: 1px solid #adc5cf; border-radius: 8px; margin: 10px; background: #fff;">
-                        <p>Učitavanje kontova...</p>
+                        <p>Učitavanje kontova...</p> 
                     </div>
                 </td>
             </tr>
