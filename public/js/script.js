@@ -212,34 +212,66 @@ async function prikaziStavkeKonta(kontoId) {
         const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
+        // Generisanje tabele sa klasama za svaku kolonu (za checkbox filtere)
         let html = `
-            <table style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+            <table style="width: 100%; font-size: 0.85em; border-collapse: collapse; margin-top: 10px;">
                 <thead>
-                    <tr class="stavke-header">
-                        <th>Datum nabavke</th>
-                        <th>Artikal</th>
-                        <th>Račun</th>
-                        <th>Vrednost sa PDV</th>
-                        <th>Status</th>
-                        <th>Datum placanja</th>
+                    <tr class="stavke-header" style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th class="col-datum" style="padding: 8px; text-align: left;">Datum nabavke</th>
+                        <th class="col-racun" style="padding: 8px; text-align: left;">Br. računa</th>
+                        <th class="col-artikal" style="padding: 8px; text-align: left;">Naziv artikla</th>
+                        <th class="col-kolicina" style="padding: 8px; text-align: left;">Količina</th>
+                        <th class="col-cena-bez" style="padding: 8px; text-align: left;">Cena bez PDV</th>
+                        <th class="col-cena-sa" style="padding: 8px; text-align: left;">Cena sa PDV</th>
+                        <th class="col-vred-bez" style="padding: 8px; text-align: left;">Vrednost bez PDV</th>
+                        <th class="col-vred-sa" style="padding: 8px; text-align: left;">Vrednost sa PDV</th>
+                        <th class="col-status" style="padding: 8px; text-align: left;">Status plaćanja</th>
+                        <th class="col-datum-pl" style="padding: 8px; text-align: left;">Datum plaćanja</th>
+                        <th class="col-institut" style="padding: 8px; text-align: left;">Institut</th>
                     </tr>
                 </thead>
                 <tbody>`;
         
-        stavke.forEach(s => {
-            console.log(s)
-            html += `
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td>${s.datum_nabavke.split('T')[0]}</td>
-                    <td>${s.naziv_artikla}</td>
-                    <td>${s.br_racuna}</td>
-                    <td>${s.vred_sa_pdv}</td>
-                    <td><span class="badge-${s.status_placanja}">${s.status_placanja}</span></td>
-                    <td>${s.datum_placanja?.slice(0, 10) || null}</td>
-                </tr>`;
-        });
+        if (stavke.length === 0) {
+            html += `<tr><td colspan="11" style="padding: 15px; text-align: center; color: #666;">Nema pronađenih stavki za ovaj konto.</td></tr>`;
+        } else {
+            stavke.forEach(s => {
+                // Pomoćne funkcije za formatiranje unutar petlje
+                const dNabavke = s.datum_nabavke ? s.datum_nabavke.split('T')[0] : '-';
+                const dPlacanja = s.datum_placanja ? s.datum_placanja.split('T')[0] : '-';
+                const institut = s.institut || '-';
+
+                html += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
+                        <td class="col-racun" style="padding: 8px;">${s.br_racuna || '-'}</td>
+                        <td class="col-artikal" style="padding: 8px; font-weight: 500;">${s.naziv_artikla}</td>
+                        <td class="col-kolicina" style="padding: 8px;">${s.kolicina || 1}</td>
+                        <td class="col-cena-bez" style="padding: 8px;">${formatirajBroj(s.cena_bez_pdv)}</td>
+                        <td class="col-cena-sa" style="padding: 8px;">${formatirajBroj(s.cena_sa_pdv)}</td>
+                        <td class="col-vred-bez" style="padding: 8px;">${formatirajBroj(s.vred_bez_pdv)}</td>
+                        <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${formatirajBroj(s.vred_sa_pdv)}</td>
+                        <td class="col-status" style="padding: 8px;">
+                            <span class="badge-${s.status_placanja || 'nepoznato'}">${s.status_placanja || '-'}</span>
+                        </td>
+                        <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
+                        <td class="col-institut" style="padding: 8px;">${institut}</td>
+                    </tr>`;
+            });
+        }
+        
         container.innerHTML = html + `</tbody></table>`;
-    } catch (e) { container.innerHTML = "Greška."; }
+
+        // KLJUČNO: Odmah nakon iscrtavanja tabele, primenjujemo filtere kolona
+        // kako bi se sakrile one kolone koje nisu čekirane u checkboxovima.
+        if (typeof primeniPrikazKolona === "function") {
+            primeniPrikazKolona();
+        }
+
+    } catch (e) { 
+        console.error("Greška pri učitavanju stavki:", e);
+        container.innerHTML = `<span style="color: red;">Greška prilikom učitavanja podataka.</span>`; 
+    }
 }
 
 async function rucnoDodajKonto(fondId, fondIme, fondGodina) {
@@ -315,5 +347,22 @@ function izmeniSredstvaKonta(id, imeKonta, trenutnaVrednost) {
         // Javlja se samo ako se zaista desila greška (mreža, baza ili lozinka)
         console.error("Detalji:", err);
         alert("GREŠKA: " + err.message);
+    });
+}
+
+function primeniPrikazKolona() {
+    const checkboxovi = document.querySelectorAll('.col-toggle');
+    
+    checkboxovi.forEach(cb => {
+        const klasaKolone = cb.value;
+        const sviElementiTeKolone = document.querySelectorAll(`.${klasaKolone}`);
+        
+        sviElementiTeKolone.forEach(el => {
+            if (cb.checked) {
+                el.style.display = ""; // Vraća na podrazumevano (vidljivo)
+            } else {
+                el.style.display = "none"; // Sakriva
+            }
+        });
     });
 }

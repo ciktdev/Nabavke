@@ -24,7 +24,7 @@ const izvuciPodatkeIzExcela = (files) => {
                 konto: -1, datum: -1, izvor: -1, artikal: -1, racun: -1, 
                 kol: -1, cenaBez: -1, cenaSa: -1, 
                 vrednostBez: -1, vrednostSa: -1, 
-                status: -1, datumPla: -1 
+                status: -1, datumPla: -1, institut: -1 
             };
 
             let startniRed = -1;
@@ -53,8 +53,9 @@ const izvuciPodatkeIzExcela = (files) => {
                     kolone.status = red.findIndex(c => c.includes('status') || c.includes('status'));
                     kolone.datumPla = red.findIndex(c => (c.includes('datum placa') || c.includes('datum plaća')));
                     kolone.konto = red.findIndex(c => (c.includes('konto')));
+                    kolone.institut = red.findIndex(c => (c.includes('institut')));
                     startniRed = i + 1;
-                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}, ${kolone.konto}`);
+                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}, ${kolone.konto}, ${kolone.institut}`);
                     console.log(red);
                     break;
                 }
@@ -102,7 +103,8 @@ const izvuciPodatkeIzExcela = (files) => {
                             vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
                             status: red[kolone.status] || null,
                             datumPla: red[kolone.datumPla] || null,
-                            konto: red[kolone.konto]
+                            konto: red[kolone.konto],
+                            institut: red[kolone.institut] || null
                         });
 
                         console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);

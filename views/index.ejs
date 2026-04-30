@@ -37,6 +37,26 @@
         </div>
     </div>
 
+    <div class="filter-kolona-kontejner" style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+        <h5 style="margin-top: 0;">Podesi prikaz kolona:</h5>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <label><input type="checkbox" class="col-toggle" value="col-datum" checked> Datum nabavke</label>
+            <label><input type="checkbox" class="col-toggle" value="col-racun" checked> Br. računa</label>
+            <label><input type="checkbox" class="col-toggle" value="col-artikal" checked> Naziv artikla</label>
+            <label><input type="checkbox" class="col-toggle" value="col-kolicina"> Količina</label>
+            <label><input type="checkbox" class="col-toggle" value="col-cena-bez"> Cena bez PDV</label>
+            <label><input type="checkbox" class="col-toggle" value="col-cena-sa"> Cena sa PDV</label>
+            <label><input type="checkbox" class="col-toggle" value="col-vred-bez"> Vrednost bez PDV</label>
+            <label><input type="checkbox" class="col-toggle" value="col-vred-sa" checked> Vrednost sa PDV</label>
+            <label><input type="checkbox" class="col-toggle" value="col-status"> Status plaćanja</label>
+            <label><input type="checkbox" class="col-toggle" value="col-datum-pl"> Datum plaćanja</label>
+            <label><input type="checkbox" class="col-toggle" value="col-institut" checked> Institut</label>
+        </div>
+        <button onclick="primeniPrikazKolona()" style="margin-top: 15px; padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Primeni promene
+        </button>
+    </div>
+
     <fieldset class="forma">
         <legend>Filteri i Pretraga</legend>
         <form action="/" method="GET">
