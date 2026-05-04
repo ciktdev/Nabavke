@@ -228,6 +228,7 @@ async function prikaziStavkeKonta(kontoId) {
                         <th class="col-status" style="padding: 8px; text-align: left;">Status plaćanja</th>
                         <th class="col-datum-pl" style="padding: 8px; text-align: left;">Datum plaćanja</th>
                         <th class="col-institut" style="padding: 8px; text-align: left;">Institut</th>
+                        <th class="col-naziv-fajla" style="padding: 8px; text-align: left;">Naziv fajla</th>
                     </tr>
                 </thead>
                 <tbody>`;
@@ -240,7 +241,6 @@ async function prikaziStavkeKonta(kontoId) {
                 const dNabavke = s.datum_nabavke ? s.datum_nabavke.split('T')[0] : '-';
                 const dPlacanja = s.datum_placanja ? s.datum_placanja.split('T')[0] : '-';
                 const institut = s.institut || '-';
-
                 html += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
@@ -256,6 +256,7 @@ async function prikaziStavkeKonta(kontoId) {
                         </td>
                         <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
                         <td class="col-institut" style="padding: 8px;">${institut}</td>
+                        <td class="col-naziv-fajla" style="padding: 8px;">${s.ime_fajla}</td>
                     </tr>`;
             });
         }

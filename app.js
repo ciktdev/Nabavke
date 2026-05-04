@@ -73,6 +73,22 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
             return res.json({ success: false, message: "Nijedna validna stavka nije pronađena." });
         }
 
+        // --- KORAK ZA BRISANJE (ANTI-DUPLIKAT) ---
+        // 1. Izvuci jedinstvena imena fajlova iz pročitanih stavki
+        const imenaFajlova = [...new Set(sveStavke.map(s => s.nazivFajla))];
+
+        // 2. Obriši sve stare stavke koje pripadaju tim fajlovima
+        // Koristimo IN (?) da obrišemo sve odjednom
+        db.query("DELETE FROM stavke WHERE ime_fajla IN (?)", [imenaFajlova], (errDelete) => {
+            if (errDelete) {
+                console.error("Greška pri čišćenju starih stavki:", errDelete);
+                return res.status(500).json({ success: false, message: "Greška pri osvežavanju podataka." });
+            }
+        
+            console.log(`Obrisane stare stavke za fajlove: ${imenaFajlova.join(", ")}`);
+
+        // Tek sada nastavljamo sa tvojim starim kodom za upis
+        });
         let obradjeno = 0;
         let greske = 0;
 
@@ -135,13 +151,13 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                                             const sqlStavka = `INSERT INTO stavke 
                                                 (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
                                                 kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                                                status_placanja, datum_placanja, institut) 
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                                                status_placanja, datum_placanja, institut, ime_fajla) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
                                             const paramsStavka = [
                                                 aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
                                                 s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                                                s.status, formatirajZaBazu(s.datumPla), s.institut
+                                                s.status, formatirajZaBazu(s.datumPla), s.institut, s.nazivFajla
                                             ];
 
                                             db.query(sqlStavka, paramsStavka, (errStavka) => {

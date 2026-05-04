@@ -1,5 +1,4 @@
 const xlsx = require('xlsx');
-
 /**
  * Funkcija prolazi kroz dostavljene fajlove, traži sheet "REALIZACIJA"
  * i izvlači sve stavke (artikle) zajedno sa informacijama o fondu.
@@ -9,6 +8,7 @@ const izvuciPodatkeIzExcela = (files) => {
 
     files.forEach(fajl => {
         try {
+            //const nazivFajla = putanja.basename(fajl);
             const workbook = xlsx.read(fajl.buffer, { type: 'buffer' });
             const sheet = workbook.Sheets["REALIZACIJA"];
             
@@ -28,7 +28,6 @@ const izvuciPodatkeIzExcela = (files) => {
             };
 
             let startniRed = -1;
-
             // 1. Pronalaženje zaglavlja (tražimo red gde su nazivi kolona)
             for (let i = 0; i < podaci.length; i++) {
                 const red = podaci[i].map(c => 
@@ -104,7 +103,8 @@ const izvuciPodatkeIzExcela = (files) => {
                             status: red[kolone.status] || null,
                             datumPla: red[kolone.datumPla] || null,
                             konto: red[kolone.konto],
-                            institut: red[kolone.institut] || null
+                            institut: red[kolone.institut] || null,
+                            nazivFajla: fajl.originalname
                         });
 
                         console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);
