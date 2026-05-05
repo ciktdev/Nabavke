@@ -17,6 +17,33 @@ const izvuciPodatkeIzExcela = (files) => {
                 return;
             }
 
+            // --- DIREKTNO ČITANJE FIKSNIH ĆELIJA (A1, A2, A3) ---
+            const dobavljacSirovo = sheet['A1'] ? sheet['A1'].v.toString().trim() : '';
+            const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().trim() : '';
+            const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().trim() : '';
+
+            let brojNabavke = nabavkaPartijaSirovo;
+            let partija = null;
+
+            if (nabavkaPartijaSirovo.toLowerCase().includes('partija')) {
+                // Delimo tekst na delove oko reči "partija" (bilo velika ili mala slova)
+                const deloviNabavke = nabavkaPartijaSirovo.split(new RegExp('partija', 'i'));
+                brojNabavke = deloviNabavke[0].replace(/[,;:]\s*$/, '').trim(); // Čisti zareze na kraju prvog dela
+                partija = "PARTIJA " + deloviNabavke[1].replace(/[:\s=-]+/g, '').trim(); // Čisti dvotačke, razmake ili minuse i ostavlja samo broj/oznaku partije
+            }
+
+            // 3. Broj ugovora i datum zaključenja (Izvlačenje iz A3)
+            // Tekst je npr: "Ugovor 44-89/26 OD 15.02.2026" ili "Ugovor br. 12 OD 2026-04-10"
+            let brojUgovora = ugovorDatumSirovo;
+            let datumUgovoraSirovo = null;
+
+            if (ugovorDatumSirovo.toLowerCase().includes(' od ')) {
+                // Delimo string na mesto gde piše " OD " (sa razmacima sa obe strane)
+                const deloviUgovora = ugovorDatumSirovo.split(new RegExp('\\s+od\\s+', 'i'));
+                brojUgovora = deloviUgovora[0].trim();
+                datumUgovoraSirovo = deloviUgovora[1].trim(); // Ovo šaljemo u kolekciju, a ruta u app.js će ga formatirati
+            }
+
             // defval: "" sprečava pucanje ako su neke ćelije potpuno prazne
             const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
             
@@ -104,7 +131,12 @@ const izvuciPodatkeIzExcela = (files) => {
                             datumPla: red[kolone.datumPla] || null,
                             konto: red[kolone.konto],
                             institut: red[kolone.institut] || null,
-                            nazivFajla: fajl.originalname
+                            nazivFajla: fajl.originalname,
+                            dobavljac: dobavljacSirovo,
+                            broj_nabavke: brojNabavke,
+                            partija: partija,
+                            broj_ugovora: brojUgovora,
+                            datum_zakljucenja: datumUgovoraSirovo
                         });
 
                         console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);

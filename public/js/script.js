@@ -212,13 +212,18 @@ async function prikaziStavkeKonta(kontoId) {
         const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
-        // Generisanje tabele sa klasama za svaku kolonu (za checkbox filtere)
+        // Generisanje tabele sa svim starim i novim kolonama i njihovim klasama
         let html = `
             <table style="width: 100%; font-size: 0.85em; border-collapse: collapse; margin-top: 10px;">
                 <thead>
                     <tr class="stavke-header" style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
                         <th class="col-datum" style="padding: 8px; text-align: left;">Datum nabavke</th>
                         <th class="col-racun" style="padding: 8px; text-align: left;">Br. računa</th>
+                        <th class="col-dobavljac" style="padding: 8px; text-align: left;">Dobavljač</th>
+                        <th class="col-nabavka" style="padding: 8px; text-align: left;">Broj nabavke</th>
+                        <th class="col-partija" style="padding: 8px; text-align: left;">Partija</th>
+                        <th class="col-ugovor" style="padding: 8px; text-align: left;">Broj ugovora</th>
+                        <th class="col-datum-ug" style="padding: 8px; text-align: left;">Datum ugovora</th>
                         <th class="col-artikal" style="padding: 8px; text-align: left;">Naziv artikla</th>
                         <th class="col-kolicina" style="padding: 8px; text-align: left;">Količina</th>
                         <th class="col-cena-bez" style="padding: 8px; text-align: left;">Cena bez PDV</th>
@@ -228,43 +233,61 @@ async function prikaziStavkeKonta(kontoId) {
                         <th class="col-status" style="padding: 8px; text-align: left;">Status plaćanja</th>
                         <th class="col-datum-pl" style="padding: 8px; text-align: left;">Datum plaćanja</th>
                         <th class="col-institut" style="padding: 8px; text-align: left;">Institut</th>
-                        <th class="col-naziv-fajla" style="padding: 8px; text-align: left;">Naziv fajla</th>
+                        <th class="col-fajl" style="padding: 8px; text-align: left;">Excel fajl</th>
                     </tr>
                 </thead>
                 <tbody>`;
         
         if (stavke.length === 0) {
-            html += `<tr><td colspan="11" style="padding: 15px; text-align: center; color: #666;">Nema pronađenih stavki za ovaj konto.</td></tr>`;
+            html += `<tr><td colspan="17" style="padding: 15px; text-align: center; color: #666;">Nema pronađenih stavki za ovaj konto.</td></tr>`;
         } else {
             stavke.forEach(s => {
-                // Pomoćne funkcije za formatiranje unutar petlje
+                // Formatiranje datuma
                 const dNabavke = s.datum_nabavke ? s.datum_nabavke.split('T')[0] : '-';
                 const dPlacanja = s.datum_placanja ? s.datum_placanja.split('T')[0] : '-';
+                
+                // Prihvata i camelCase iz servisa i snake_case iz baze podataka
+                const dUgovoraSirovo = s.datum_ugovora || s.datumUgovora;
+                const dUgovora = dUgovoraSirovo ? dUgovoraSirovo.split('T')[0] : '-';
+
+                const dobavljac = s.dobavljac || '-';
+                const brNabavke = s.broj_nabavke || s.brojNabavke || '-';
+                const partija = s.partija || '-';
+                const brUgovora = s.broj_ugovora || s.brojUgovora || '-';
                 const institut = s.institut || '-';
+                const imeFajla = s.ime_fajla || s.nazivFajla || '-';
+
+                // Pomoćna funkcija za formatiranje brojeva (ako je nemaš, koristi s.vred_sa_pdv direktno)
+                const f = (br) => typeof formatirajBroj === 'function' ? formatirajBroj(br) : Number(br).toLocaleString('de-DE');
+
                 html += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
                         <td class="col-racun" style="padding: 8px;">${s.br_racuna || '-'}</td>
+                        <td class="col-dobavljac" style="padding: 8px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${dobavljac}">${dobavljac}</td>
+                        <td class="col-nabavka" style="padding: 8px;">${brNabavke}</td>
+                        <td class="col-partija" style="padding: 8px;">${partija}</td>
+                        <td class="col-ugovor" style="padding: 8px;">${brUgovora}</td>
+                        <td class="col-datum-ug" style="padding: 8px;">${dUgovora}</td>
                         <td class="col-artikal" style="padding: 8px; font-weight: 500;">${s.naziv_artikla}</td>
-                        <td class="col-kolicina" style="padding: 8px;">${s.kolicina || 1}</td>
-                        <td class="col-cena-bez" style="padding: 8px;">${formatirajBroj(s.cena_bez_pdv)}</td>
-                        <td class="col-cena-sa" style="padding: 8px;">${formatirajBroj(s.cena_sa_pdv)}</td>
-                        <td class="col-vred-bez" style="padding: 8px;">${formatirajBroj(s.vred_bez_pdv)}</td>
-                        <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${formatirajBroj(s.vred_sa_pdv)}</td>
+                        <td class="col-kolicina" style="padding: 8px;">${s.kolicina || 0}</td>
+                        <td class="col-cena-bez" style="padding: 8px;">${f(s.cena_bez_pdv || s.cenaBez)}</td>
+                        <td class="col-cena-sa" style="padding: 8px;">${f(s.cena_sa_pdv || s.cenaSa)}</td>
+                        <td class="col-vred-bez" style="padding: 8px;">${f(s.vred_bez_pdv || s.vrednostBez)}</td>
+                        <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
                         <td class="col-status" style="padding: 8px;">
                             <span class="badge-${s.status_placanja || 'nepoznato'}">${s.status_placanja || '-'}</span>
                         </td>
                         <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
                         <td class="col-institut" style="padding: 8px;">${institut}</td>
-                        <td class="col-naziv-fajla" style="padding: 8px;">${s.ime_fajla}</td>
+                        <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${imeFajla}</td>
                     </tr>`;
             });
         }
         
         container.innerHTML = html + `</tbody></table>`;
 
-        // KLJUČNO: Odmah nakon iscrtavanja tabele, primenjujemo filtere kolona
-        // kako bi se sakrile one kolone koje nisu čekirane u checkboxovima.
+        // Pokretanje skripte koja odmah sakriva nečekirane kolone
         if (typeof primeniPrikazKolona === "function") {
             primeniPrikazKolona();
         }
@@ -352,18 +375,19 @@ function izmeniSredstvaKonta(id, imeKonta, trenutnaVrednost) {
 }
 
 function primeniPrikazKolona() {
-    const checkboxovi = document.querySelectorAll('.col-toggle');
-    
-    checkboxovi.forEach(cb => {
-        const klasaKolone = cb.value;
-        const sviElementiTeKolone = document.querySelectorAll(`.${klasaKolone}`);
+    // Prolazimo kroz svaki checkbox koji ima klasu .col-toggle
+    document.querySelectorAll('.col-toggle').forEach(checkbox => {
+        const klasaKolone = checkbox.value; // npr. "col-partija"
+        const isCekiran = checkbox.checked;
         
-        sviElementiTeKolone.forEach(el => {
-            if (cb.checked) {
-                el.style.display = ""; // Vraća na podrazumevano (vidljivo)
-            } else {
-                el.style.display = "none"; // Sakriva
-            }
+        // Pronalazimo sve TH i TD elemente sa tom klasom unutar cele stranice
+        document.querySelectorAll(`.${klasaKolone}`).forEach(celija => {
+            celija.style.display = isCekiran ? '' : 'none';
         });
     });
 }
+
+// Takođe vežeš event listener na promenu bilo kog checkboxa u filtrima
+document.querySelectorAll('.col-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', primeniPrikazKolona);
+});

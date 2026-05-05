@@ -151,13 +151,15 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                                             const sqlStavka = `INSERT INTO stavke 
                                                 (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
                                                 kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                                                status_placanja, datum_placanja, institut, ime_fajla) 
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                                                status_placanja, datum_placanja, institut, ime_fajla, dobavljac, 
+                                                broj_nabavke, partija, broj_ugovora, datum_zakljucenja) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
                                             const paramsStavka = [
                                                 aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
                                                 s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                                                s.status, formatirajZaBazu(s.datumPla), s.institut, s.nazivFajla
+                                                s.status, formatirajZaBazu(s.datumPla), s.institut, s.nazivFajla, 
+                                                s.dobavljac, s.broj_nabavke, s.partija, s.broj_ugovora, formatirajZaBazu(s.datum_zakljucenja)
                                             ];
 
                                             db.query(sqlStavka, paramsStavka, (errStavka) => {
