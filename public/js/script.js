@@ -192,7 +192,6 @@ async function prikaziKonta(fondId) {
         container.innerHTML = "Greška pri učitavanju kontova."; 
     }
 }
-
 async function prikaziStavkeKonta(kontoId) {
     const row = document.getElementById(`konto-expand-${kontoId}`);
     const glavniRedKonta = document.getElementById(`konto-glavni-${kontoId}`);
@@ -200,19 +199,73 @@ async function prikaziStavkeKonta(kontoId) {
 
     if (row.style.display === 'table-row') {
         row.style.display = 'none';
-        glavniRedKonta.classList.remove('konto-red-otvoren'); // Skloni sticky kad se zatvori
+        glavniRedKonta.classList.remove('konto-red-otvoren');
         return;
     }
 
     row.style.display = 'table-row';
-    glavniRedKonta.classList.add('konto-red-otvoren'); // Dodaj sticky kad se otvori
+    glavniRedKonta.classList.add('konto-red-otvoren');
     container.innerHTML = 'Učitavanje stavki...';
 
     try {
         const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
-        // Generisanje tabele sa svim starim i novim kolonama i njihovim klasama
+        /**
+         * NOVA FUNKCIJA KOJA POTPUNO IGNORIŠE VREMENSKE ZONE
+         * Uzima sirovi string "2024-12-31T23:00:00.000Z" 
+         * i od njega pravi "31.12.2024." bez ikakvog preračunavanja.
+         */
+        const formatirajZaPrikaz = (input) => {
+            if (!input || input === '-') return '-';
+
+            // Ako dobijemo string (najčešći slučaj iz baze preko JSON-a)
+            if (typeof input === 'string') {
+                // Uzimamo samo deo pre "T" (npr. "2024-12-31")
+                const datumDeo = input.split('T')[0];
+                const delovi = datumDeo.split('-'); // ["2024", "12", "31"]
+
+                if (delovi.length === 3) {
+                    // Ako je sat 22:00 ili 23:00, to znači da je Node.js vratio sat unazad.
+                    // Moramo proveriti da li string sadrži T22 ili T23 i u tom slučaju DODATI jedan dan.
+                    if (input.includes('T22:') || input.includes('T23:')) {
+                        const d = new Date(input);
+                        d.setHours(d.getHours() + 5); // Dodajemo dovoljno sati da preskočimo u sledeći dan
+                        const dan = String(d.getDate()).padStart(2, '0');
+                        const mesec = String(d.getMonth() + 1).padStart(2, '0');
+                        const godina = d.getFullYear();
+                        return `${dan}.${mesec}.${godina}.`;
+                    }
+                    
+                    // Ako je regularan datum (T00:00 ili T12:00)
+                    return `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
+                }
+            }
+            
+            // Rezervna opcija ako je format čudan
+            try {
+                const d = new Date(input);
+                if (!isNaN(d.getTime())) {
+                    // Ako je u pitanju onaj problem sa slike (22:00 ili 23:00)
+                    if (d.getUTCHours() >= 22) {
+                        d.setUTCDate(d.getUTCDate() + 1);
+                    }
+                    const dan = String(d.getUTCDate()).padStart(2, '0');
+                    const mesec = String(d.getUTCMonth() + 1).padStart(2, '0');
+                    const godina = d.getUTCFullYear();
+                    return `${dan}.${mesec}.${godina}.`;
+                }
+            } catch (e) {
+                return '-';
+            }
+            return '-';
+        };
+
+        const f = (br) => {
+            if (br === undefined || br === null) return '0,00';
+            return Number(br).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
         let html = `
             <table style="width: 100%; font-size: 0.85em; border-collapse: collapse; margin-top: 10px;">
                 <thead>
@@ -242,13 +295,9 @@ async function prikaziStavkeKonta(kontoId) {
             html += `<tr><td colspan="17" style="padding: 15px; text-align: center; color: #666;">Nema pronađenih stavki za ovaj konto.</td></tr>`;
         } else {
             stavke.forEach(s => {
-                // Formatiranje datuma
-                const dNabavke = s.datum_nabavke ? s.datum_nabavke.split('T')[0] : '-';
-                const dPlacanja = s.datum_placanja ? s.datum_placanja.split('T')[0] : '-';
-                
-                // Prihvata i camelCase iz servisa i snake_case iz baze podataka
-                const dUgovoraSirovo = s.datum_ugovora || s.datumUgovora;
-                const dUgovora = dUgovoraSirovo ? dUgovoraSirovo.split('T')[0] : '-';
+                const dNabavke = formatirajZaPrikaz(s.datum_nabavke);
+                const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
+                const dUgovora = formatirajZaPrikaz(s.datum_ugovora || s.datumUgovora);
 
                 const dobavljac = s.dobavljac || '-';
                 const brNabavke = s.broj_nabavke || s.brojNabavke || '-';
@@ -256,9 +305,6 @@ async function prikaziStavkeKonta(kontoId) {
                 const brUgovora = s.broj_ugovora || s.brojUgovora || '-';
                 const institut = s.institut || '-';
                 const imeFajla = s.ime_fajla || s.nazivFajla || '-';
-
-                // Pomoćna funkcija za formatiranje brojeva (ako je nemaš, koristi s.vred_sa_pdv direktno)
-                const f = (br) => typeof formatirajBroj === 'function' ? formatirajBroj(br) : Number(br).toLocaleString('de-DE');
 
                 html += `
                     <tr style="border-bottom: 1px solid #eee;">
@@ -276,7 +322,7 @@ async function prikaziStavkeKonta(kontoId) {
                         <td class="col-vred-bez" style="padding: 8px;">${f(s.vred_bez_pdv || s.vrednostBez)}</td>
                         <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
                         <td class="col-status" style="padding: 8px;">
-                            <span class="badge-${s.status_placanja || 'nepoznato'}">${s.status_placanja || '-'}</span>
+                            <span class="badge-${(s.status_placanja || 'nepoznato').toLowerCase()}">${s.status_placanja || '-'}</span>
                         </td>
                         <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
                         <td class="col-institut" style="padding: 8px;">${institut}</td>
@@ -287,7 +333,6 @@ async function prikaziStavkeKonta(kontoId) {
         
         container.innerHTML = html + `</tbody></table>`;
 
-        // Pokretanje skripte koja odmah sakriva nečekirane kolone
         if (typeof primeniPrikazKolona === "function") {
             primeniPrikazKolona();
         }

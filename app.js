@@ -93,31 +93,51 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         let greske = 0;
 
         const formatirajZaBazu = (d) => {
-            if (!d) return null;
+    if (!d) return null;
 
-            // 1. Ako je Excel poslao datum kao broj (npr. 46062)
-            if (typeof d === 'number') {
-                const date = new Date((d - 25569) * 86400 * 1000);
-                return date.toISOString().split('T')[0];
-            }
-
-            // 2. Ako je datum string sa tačkama (npr. "10.02.2026" ili "10.02.2026.")
-            const s = d.toString().trim();
-            const delovi = s.split('.');
-    
-            // Proveravamo da li imamo barem dan, mesec i godinu
-            if (delovi.length >= 3) {
-                const dan = delovi[0].padStart(2, '0');
-                const mesec = delovi[1].padStart(2, '0');
-                const godina = delovi[2];
+    // 1. Ako je datum broj (Excel format)
+    if (typeof d === 'number') {
+        // Izračunavamo milisekunde i dodajemo 12 sati (12 * 60 * 60 * 1000)
+        // Ovo sprečava da timezone offset pomeri datum na prethodni dan
+        const ms = Math.round((d - 25569) * 86400 * 1000) + (12 * 60 * 60 * 1000);
+        const date = new Date(ms);
         
-                // Vraćamo u formatu koji MySQL jedino prihvata: YYYY-MM-DD
-                return `${godina}-${mesec}-${dan}`;
-            }
+        const godina = date.getFullYear();
+        const mesec = String(date.getMonth() + 1).padStart(2, '0');
+        const dan = String(date.getDate()).padStart(2, '0');
+        
+        return `${godina}-${mesec}-${dan}`;
+    }
 
-            // 3. Ako je već u dobrom formatu (YYYY-MM-DD), vrati ga tako
-            return d;
-        };
+    // 2. Ako je datum string sa tačkama (npr. "08.05.2026")
+    const s = d.toString().trim();
+    const delovi = s.split('.');
+
+    if (delovi.length >= 3) {
+        const dan = delovi[0].trim().padStart(2, '0');
+        const mesec = delovi[1].trim().padStart(2, '0');
+        const godina = delovi[2].trim();
+        
+        // Vraća format koji MySQL DATE kolona zahteva: YYYY-MM-DD
+        return `${godina}-${mesec}-${dan}`;
+    }
+
+    // 3. Ako je datum već u ISO formatu ili nekom drugom stringu
+    try {
+        const date = new Date(d);
+        if (!isNaN(date.getTime())) {
+            // I ovde koristimo lokalne metode da izbegnemo UTC pomeranje
+            const godina = date.getFullYear();
+            const mesec = String(date.getMonth() + 1).padStart(2, '0');
+            const dan = String(date.getDate()).padStart(2, '0');
+            return `${godina}-${mesec}-${dan}`;
+        }
+    } catch (e) {
+        console.error("Greška pri formatiranju datuma:", e);
+    }
+
+    return null;
+};
 
         sveStavke.forEach(s => {
             // KORAK 1: Upis u fond (Kolona se zove 'ime', a ne 'ime_fonda')
