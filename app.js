@@ -92,56 +92,46 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         let obradjeno = 0;
         let greske = 0;
 
-        const formatirajZaBazu = (d) => {
+        const formatirajZaBazu = (d, nazivPolja = "nepoznato") => {
     if (!d) return null;
 
-    // 1. Ako je datum broj (Excel format)
+    // 1. Ako je broj (Excel)
     if (typeof d === 'number') {
-        // Izračunavamo milisekunde i dodajemo 12 sati (12 * 60 * 60 * 1000)
-        // Ovo sprečava da timezone offset pomeri datum na prethodni dan
         const ms = Math.round((d - 25569) * 86400 * 1000) + (12 * 60 * 60 * 1000);
         const date = new Date(ms);
-        
-        const godina = date.getFullYear();
-        const mesec = String(date.getMonth() + 1).padStart(2, '0');
-        const dan = String(date.getDate()).padStart(2, '0');
-        
-        return `${godina}-${mesec}-${dan}`;
+        if (!isNaN(date.getTime())) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
     }
 
-    // 2. Ako je datum string sa tačkama (npr. "08.05.2026")
     const s = d.toString().trim();
-    const delovi = s.split('.');
+    if (s === "") return null;
 
+    // 2. Provera da li je regularan format sa tačkama (npr. 10.05.2026)
+    const delovi = s.split('.');
     if (delovi.length >= 3) {
         const dan = delovi[0].trim().padStart(2, '0');
         const mesec = delovi[1].trim().padStart(2, '0');
         const godina = delovi[2].trim();
-        
-        // Vraća format koji MySQL DATE kolona zahteva: YYYY-MM-DD
-        return `${godina}-${mesec}-${dan}`;
-    }
-
-    // 3. Ako je datum već u ISO formatu ili nekom drugom stringu
-    try {
-        const date = new Date(d);
-        if (!isNaN(date.getTime())) {
-            // I ovde koristimo lokalne metode da izbegnemo UTC pomeranje
-            const godina = date.getFullYear();
-            const mesec = String(date.getMonth() + 1).padStart(2, '0');
-            const dan = String(date.getDate()).padStart(2, '0');
+        // Mala provera da li su stvarno brojevi u pitanju
+        if (!isNaN(dan) && !isNaN(mesec) && godina.length >= 4) {
             return `${godina}-${mesec}-${dan}`;
         }
-    } catch (e) {
-        console.error("Greška pri formatiranju datuma:", e);
     }
 
-    return null;
+    // 3. Provera preko Date objekta (ISO i ostalo)
+    const probniDatum = new Date(s);
+    if (!isNaN(probniDatum.getTime()) && s.includes('-')) {
+        return `${probniDatum.getFullYear()}-${String(probniDatum.getMonth() + 1).padStart(2, '0')}-${String(probniDatum.getDate()).padStart(2, '0')}`;
+    }
+
+    // Vraćamo originalnu vrednost da bi tvoj kod na backendu mogao da odluči šta će sa njom
+    return s; 
 };
 
         sveStavke.forEach(s => {
             // KORAK 1: Upis u fond (Kolona se zove 'ime', a ne 'ime_fonda')
-            console.log(s)
+            //console.log(s)
             db.query(
                 "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
                 [s.ime_fonda, s.godina], // s.ime_fonda dolazi iz Excel servisa

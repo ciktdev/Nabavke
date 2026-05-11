@@ -192,6 +192,36 @@ async function prikaziKonta(fondId) {
         container.innerHTML = "Greška pri učitavanju kontova."; 
     }
 }
+
+function filtrirajTabeluStavki(kontoId) {
+    const input = document.getElementById(`filter-stavki-${kontoId}`);
+    // Razbijamo unos na pojedinačne reči i čistimo prazne razmake
+    const filterReci = input.value.toLowerCase().split(' ').filter(rec => rec.length > 0);
+    
+    const tabela = document.getElementById(`tabela-stavki-${kontoId}`);
+    const redovi = tabela.getElementsByClassName('stavka-red');
+    const brojac = document.getElementById(`count-${kontoId}`);
+    
+    let vidljivoStavki = 0;
+
+    for (let i = 0; i < redovi.length; i++) {
+        const tekstReda = redovi[i].textContent.toLowerCase();
+        
+        // Proveravamo da li red sadrži SVAKU reč koju smo ukucali (AND logika)
+        // Ako ukucaš "faktura 2024", red mora da ima i "faktura" i "2024"
+        const podudaraSe = filterReci.every(rec => tekstReda.includes(rec));
+        
+        if (podudaraSe) {
+            redovi[i].style.display = "";
+            vidljivoStavki++;
+        } else {
+            redovi[i].style.display = "none";
+        }
+    }
+    
+    if (brojac) brojac.innerText = vidljivoStavki;
+}
+
 async function prikaziStavkeKonta(kontoId) {
     const row = document.getElementById(`konto-expand-${kontoId}`);
     const glavniRedKonta = document.getElementById(`konto-glavni-${kontoId}`);
@@ -211,52 +241,20 @@ async function prikaziStavkeKonta(kontoId) {
         const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
-        /**
-         * NOVA FUNKCIJA KOJA POTPUNO IGNORIŠE VREMENSKE ZONE
-         * Uzima sirovi string "2024-12-31T23:00:00.000Z" 
-         * i od njega pravi "31.12.2024." bez ikakvog preračunavanja.
-         */
+        // Funkcija za formatiranje datuma (ona ojačana verzija)
         const formatirajZaPrikaz = (input) => {
             if (!input || input === '-') return '-';
-
-            // Ako dobijemo string (najčešći slučaj iz baze preko JSON-a)
             if (typeof input === 'string') {
-                // Uzimamo samo deo pre "T" (npr. "2024-12-31")
                 const datumDeo = input.split('T')[0];
-                const delovi = datumDeo.split('-'); // ["2024", "12", "31"]
-
+                const delovi = datumDeo.split('-');
                 if (delovi.length === 3) {
-                    // Ako je sat 22:00 ili 23:00, to znači da je Node.js vratio sat unazad.
-                    // Moramo proveriti da li string sadrži T22 ili T23 i u tom slučaju DODATI jedan dan.
                     if (input.includes('T22:') || input.includes('T23:')) {
                         const d = new Date(input);
-                        d.setHours(d.getHours() + 5); // Dodajemo dovoljno sati da preskočimo u sledeći dan
-                        const dan = String(d.getDate()).padStart(2, '0');
-                        const mesec = String(d.getMonth() + 1).padStart(2, '0');
-                        const godina = d.getFullYear();
-                        return `${dan}.${mesec}.${godina}.`;
+                        d.setHours(d.getHours() + 5);
+                        return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
                     }
-                    
-                    // Ako je regularan datum (T00:00 ili T12:00)
                     return `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
                 }
-            }
-            
-            // Rezervna opcija ako je format čudan
-            try {
-                const d = new Date(input);
-                if (!isNaN(d.getTime())) {
-                    // Ako je u pitanju onaj problem sa slike (22:00 ili 23:00)
-                    if (d.getUTCHours() >= 22) {
-                        d.setUTCDate(d.getUTCDate() + 1);
-                    }
-                    const dan = String(d.getUTCDate()).padStart(2, '0');
-                    const mesec = String(d.getUTCMonth() + 1).padStart(2, '0');
-                    const godina = d.getUTCFullYear();
-                    return `${dan}.${mesec}.${godina}.`;
-                }
-            } catch (e) {
-                return '-';
             }
             return '-';
         };
@@ -266,8 +264,17 @@ async function prikaziStavkeKonta(kontoId) {
             return Number(br).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
+        // 1. DODAJEMO INPUT POLJE ZA FILTER IZNAD TABELE
         let html = `
-            <table style="width: 100%; font-size: 0.85em; border-collapse: collapse; margin-top: 10px;">
+            <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px;">
+                <input type="text" 
+                       id="filter-stavki-${kontoId}" 
+                       placeholder="Pretraži stavke (dobavljač, račun, artikal...)" 
+                       style="padding: 6px 10px; width: 300px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;"
+                       onkeyup="filtrirajTabeluStavki(${kontoId})">
+                <span style="font-size: 0.8em; color: #666;">Prikazano: <strong id="count-${kontoId}">${stavke.length}</strong> stavki</span>
+            </div>
+            <table id="tabela-stavki-${kontoId}" style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
                 <thead>
                     <tr class="stavke-header" style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
                         <th class="col-datum" style="padding: 8px; text-align: left;">Datum nabavke</th>
@@ -299,21 +306,14 @@ async function prikaziStavkeKonta(kontoId) {
                 const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
                 const dUgovora = formatirajZaPrikaz(s.datum_ugovora || s.datumUgovora);
 
-                const dobavljac = s.dobavljac || '-';
-                const brNabavke = s.broj_nabavke || s.brojNabavke || '-';
-                const partija = s.partija || '-';
-                const brUgovora = s.broj_ugovora || s.brojUgovora || '-';
-                const institut = s.institut || '-';
-                const imeFajla = s.ime_fajla || s.nazivFajla || '-';
-
                 html += `
-                    <tr style="border-bottom: 1px solid #eee;">
+                    <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
                         <td class="col-racun" style="padding: 8px;">${s.br_racuna || '-'}</td>
-                        <td class="col-dobavljac" style="padding: 8px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${dobavljac}">${dobavljac}</td>
-                        <td class="col-nabavka" style="padding: 8px;">${brNabavke}</td>
-                        <td class="col-partija" style="padding: 8px;">${partija}</td>
-                        <td class="col-ugovor" style="padding: 8px;">${brUgovora}</td>
+                        <td class="col-dobavljac" style="padding: 8px;">${s.dobavljac || '-'}</td>
+                        <td class="col-nabavka" style="padding: 8px;">${s.broj_nabavke || s.brojNabavke || '-'}</td>
+                        <td class="col-partija" style="padding: 8px;">${s.partija || '-'}</td>
+                        <td class="col-ugovor" style="padding: 8px;">${s.broj_ugovora || s.brojUgovora || '-'}</td>
                         <td class="col-datum-ug" style="padding: 8px;">${dUgovora}</td>
                         <td class="col-artikal" style="padding: 8px; font-weight: 500;">${s.naziv_artikla}</td>
                         <td class="col-kolicina" style="padding: 8px;">${s.kolicina || 0}</td>
@@ -325,8 +325,8 @@ async function prikaziStavkeKonta(kontoId) {
                             <span class="badge-${(s.status_placanja || 'nepoznato').toLowerCase()}">${s.status_placanja || '-'}</span>
                         </td>
                         <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
-                        <td class="col-institut" style="padding: 8px;">${institut}</td>
-                        <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${imeFajla}</td>
+                        <td class="col-institut" style="padding: 8px;">${s.institut || '-'}</td>
+                        <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${s.ime_fajla || s.nazivFajla || '-'}</td>
                     </tr>`;
             });
         }
