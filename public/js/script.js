@@ -420,19 +420,62 @@ function izmeniSredstvaKonta(id, imeKonta, trenutnaVrednost) {
 }
 
 function primeniPrikazKolona() {
-    // Prolazimo kroz svaki checkbox koji ima klasu .col-toggle
+    const podesavanja = {};
+
+    // Prolazimo kroz svaki checkbox
     document.querySelectorAll('.col-toggle').forEach(checkbox => {
         const klasaKolone = checkbox.value; // npr. "col-partija"
         const isCekiran = checkbox.checked;
         
-        // Pronalazimo sve TH i TD elemente sa tom klasom unutar cele stranice
+        // Sakrivanje/prikazivanje ćelija
+        document.querySelectorAll(`.${klasaKolone}`).forEach(celija => {
+            celija.style.display = isCekiran ? '' : 'none';
+        });
+
+        // DODATAK: Skupljamo stanja u jedan objekat (koristimo value kao ključ)
+        podesavanja[klasaKolone] = isCekiran;
+    });
+
+    // DODATAK: Čuvamo taj objekat u localStorage
+    localStorage.setItem('prikazKolonaStanje', JSON.stringify(podesavanja));
+}
+
+// Takođe vežeš event listener na promenu bilo kog checkboxa u filtrima
+document.querySelectorAll('.col-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', primeniPrikazKolona);
+});
+
+function ucitajPodesavanjaKolona() {
+    const sacuvano = localStorage.getItem('prikazKolonaStanje');
+    if (!sacuvano) return; // Ako je prvi put na sajtu, ne radi ništa
+
+    const podesavanja = JSON.parse(sacuvano);
+
+    // Prolazimo kroz sve checkboxove i vraćamo im stanje iz memorije
+    document.querySelectorAll('.col-toggle').forEach(checkbox => {
+        const klasaKolone = checkbox.value;
+        if (podesavanja.hasOwnProperty(klasaKolone)) {
+            checkbox.checked = podesavanja[klasaKolone];
+        }
+    });
+
+    // Na kraju pokrenemo tvoju funkciju da bi se tabela fizički sakrila
+    // (Ovo radimo bez čuvanja da ne bi ušli u beskonačnu petlju)
+    izvrsiSakrivanjeBezCuvanja();
+}
+
+// Pomoćna funkcija koja samo sakriva, bez pisanja u localStorage
+function izvrsiSakrivanjeBezCuvanja() {
+    document.querySelectorAll('.col-toggle').forEach(checkbox => {
+        const klasaKolone = checkbox.value;
+        const isCekiran = checkbox.checked;
         document.querySelectorAll(`.${klasaKolone}`).forEach(celija => {
             celija.style.display = isCekiran ? '' : 'none';
         });
     });
 }
 
-// Takođe vežeš event listener na promenu bilo kog checkboxa u filtrima
-document.querySelectorAll('.col-toggle').forEach(checkbox => {
-    checkbox.addEventListener('change', primeniPrikazKolona);
+// Kada se cela stranica učita, vrati checkboxove i sakrij kolone
+window.addEventListener('DOMContentLoaded', () => {
+    ucitajPodesavanjaKolona();
 });
