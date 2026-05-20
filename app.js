@@ -66,7 +66,7 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
     }
 
     try {
-        // Pozivamo novu funkciju iz servisa koja izvlači sve detalje
+        // Pozivamo funkciju iz servisa koja izvlači sve detalje
         const sveStavke = excelService.izvuciPodatkeIzExcela(req.files);
 
         if (sveStavke.length === 0) {
@@ -74,11 +74,8 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         }
 
         // --- KORAK ZA BRISANJE (ANTI-DUPLIKAT) ---
-        // 1. Izvuci jedinstvena imena fajlova iz pročitanih stavki
         const imenaFajlova = [...new Set(sveStavke.map(s => s.nazivFajla))];
 
-        // 2. Obriši sve stare stavke koje pripadaju tim fajlovima
-        // Koristimo IN (?) da obrišemo sve odjednom
         db.query("DELETE FROM stavke WHERE ime_fajla IN (?)", [imenaFajlova], (errDelete) => {
             if (errDelete) {
                 console.error("Greška pri čišćenju starih stavki:", errDelete);
@@ -87,113 +84,176 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         
             console.log(`Obrisane stare stavke za fajlove: ${imenaFajlova.join(", ")}`);
 
-        // Tek sada nastavljamo sa tvojim starim kodom za upis
+            // Tek sada nastavljamo sa upisom
+            pokreniUpisStavki();
         });
+
         let obradjeno = 0;
         let greske = 0;
+        let detaljiGresaka = []; // Za praćenje detalja ako nešto pukne
 
         const formatirajZaBazu = (d, nazivPolja = "nepoznato") => {
-    if (!d) return null;
+            if (!d) return null;
 
-    // 1. Ako je broj (Excel)
-    if (typeof d === 'number') {
-        const ms = Math.round((d - 25569) * 86400 * 1000) + (12 * 60 * 60 * 1000);
-        const date = new Date(ms);
-        if (!isNaN(date.getTime())) {
-            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        }
-    }
+            if (typeof d === 'number') {
+                const ms = Math.round((d - 25569) * 86400 * 1000) + (12 * 60 * 60 * 1000);
+                const date = new Date(ms);
+                if (!isNaN(date.getTime())) {
+                    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                }
+            }
 
-    const s = d.toString().trim();
-    if (s === "") return null;
+            const s = d.toString().trim();
+            if (s === "") return null;
 
-    // 2. Provera da li je regularan format sa tačkama (npr. 10.05.2026)
-    const delovi = s.split('.');
-    if (delovi.length >= 3) {
-        const dan = delovi[0].trim().padStart(2, '0');
-        const mesec = delovi[1].trim().padStart(2, '0');
-        const godina = delovi[2].trim();
-        // Mala provera da li su stvarno brojevi u pitanju
-        if (!isNaN(dan) && !isNaN(mesec) && godina.length >= 4) {
-            return `${godina}-${mesec}-${dan}`;
-        }
-    }
+            const delovi = s.split('.');
+            if (delovi.length >= 3) {
+                const dan = delovi[0].trim().padStart(2, '0');
+                const mesec = delovi[1].trim().padStart(2, '0');
+                const godina = delovi[2].trim();
+                if (!isNaN(dan) && !isNaN(mesec) && godina.length >= 4) {
+                    return `${godina}-${mesec}-${dan}`;
+                }
+            }
 
-    // 3. Provera preko Date objekta (ISO i ostalo)
-    const probniDatum = new Date(s);
-    if (!isNaN(probniDatum.getTime()) && s.includes('-')) {
-        return `${probniDatum.getFullYear()}-${String(probniDatum.getMonth() + 1).padStart(2, '0')}-${String(probniDatum.getDate()).padStart(2, '0')}`;
-    }
+            const probniDatum = new Date(s);
+            if (!isNaN(probniDatum.getTime()) && s.includes('-')) {
+                return `${probniDatum.getFullYear()}-${String(probniDatum.getMonth() + 1).padStart(2, '0')}-${String(probniDatum.getDate()).padStart(2, '0')}`;
+            }
 
-    // Vraćamo originalnu vrednost da bi tvoj kod na backendu mogao da odluči šta će sa njom
-    return s; 
-};
+            return s; 
+        };
 
-        sveStavke.forEach(s => {
-            // KORAK 1: Upis u fond (Kolona se zove 'ime', a ne 'ime_fonda')
-            //console.log(s)
-            db.query(
-                "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
-                [s.ime_fonda, s.godina], // s.ime_fonda dolazi iz Excel servisa
-                (err) => {
-                    if (err) { greske++; proveriKraj(); return; }
+        function pokreniUpisStavki() {
+            (async () => {
+                for (const s of sveStavke) {
+                    try {
+                        // KORAK 1: Upis u fond
+                        await new Promise((resolve, reject) => {
+                            db.query(
+                                "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
+                                [s.ime_fonda, s.godina],
+                                (err) => err ? reject(err) : resolve()
+                            );
+                        });
 
-                    const nazivKonta = s.konto;
-                    // KORAK 2: Upis u konto
-                    db.query(
-                        "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
-                        [s.ime_fonda, s.godina, nazivKonta],
-                        (errKonto) => {
-                            if (errKonto) { greske++; console.error(errKonto.message); proveriKraj(); return; }
+                        const nazivKonta = s.konto;
+                        // KORAK 2: Upis u konto
+                        await new Promise((resolve, reject) => {
+                            db.query(
+                                "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
+                                [s.ime_fonda, s.godina, nazivKonta],
+                                (errKonto) => errKonto ? reject(errKonto) : resolve()
+                            );
+                        });
 
-                            // KORAK 3: Pronalaženje ID-a konta (FIX za sliku image_b384da.png)
+                        // KORAK 3: Pronalaženje ID-a konta
+                        const aktuelniKontoId = await new Promise((resolve, reject) => {
                             db.query(
                                 "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
                                 [s.ime_fonda, s.godina, nazivKonta],
                                 (errSelect, rezultati) => {
                                     if (errSelect || rezultati.length === 0) {
-                                        console.error("Neuspešno pronalaženje ID-a konta", s.ime_fonda, s.konto);
-                                        greske++; proveriKraj(); return;
+                                        reject(errSelect || new Error("Konto nije pronađen"));
+                                    } else {
+                                        resolve(rezultati[0].id);
                                     }
-
-                                            const aktuelniKontoId = rezultati[0].id;
-                                            // 4. KORAK: Upis stavke (Sa ispravnim ID-em)
-                                            const sqlStavka = `INSERT INTO stavke 
-                                                (konto_id, datum_nabavke, br_racuna, naziv_artikla, 
-                                                kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                                                status_placanja, datum_placanja, institut, ime_fajla, dobavljac, 
-                                                broj_nabavke, partija, broj_ugovora, datum_zakljucenja) 
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-                                            const paramsStavka = [
-                                                aktuelniKontoId, formatirajZaBazu(s.datum), s.br_racuna, s.artikal,
-                                                s.kolicina, s.cenaBez, s.cenaSa, s.vrednostBez, s.vrednostSa,
-                                                s.status, formatirajZaBazu(s.datumPla), s.institut, s.nazivFajla, 
-                                                s.dobavljac, s.broj_nabavke, s.partija, s.broj_ugovora, formatirajZaBazu(s.datum_zakljucenja)
-                                            ];
-
-                                            db.query(sqlStavka, paramsStavka, (errStavka) => {
-                                                if (errStavka){
-                                                    console.error("Greška kod stavke:", errStavka);
-                                                    greske++;
-
-                                                } else obradjeno++;
-                                                proveriKraj();
-                                            });
-                                        }
-                                    );
                                 }
                             );
+                        });
+
+                        // KORAK 4: Logika za strani ključ ugovora
+                        let ugovorIdZaBazu = null;
+                        let cistiBrojUgovora = null;
+
+                        if (s.broj_ugovora && s.broj_ugovora.toString().trim() !== '' && s.broj_ugovora !== '-') {
+                            cistiBrojUgovora = s.broj_ugovora.toString().trim();
+
+                            const postojeciUgovori = await new Promise((resolve, reject) => {
+                                db.query(
+                                    "SELECT id FROM ugovori WHERE broj_ugovora = ?",
+                                    [cistiBrojUgovora],
+                                    (errUgovori, rezultati) => errUgovori ? reject(errUgovori) : resolve(rezultati)
+                                );
+                            });
+
+                            if (postojeciUgovori.length > 0) {
+                                ugovorIdZaBazu = postojeciUgovori[0].id;
+                            } else {
+                                const noviUgovorId = await new Promise((resolve, reject) => {
+                                    db.query(
+                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv, vrednost_sa_pdv, utroseno_bez_pdv, utroseno_sa_pdv, ostalo_bez_pdv, ostalo_sa_pdv) 
+                                         VALUES (?, 0, 0, 0, 0, 0, 0)`,
+                                        [cistiBrojUgovora],
+                                        (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
+                                    );
+                                });
+                                ugovorIdZaBazu = noviUgovorId;
+                            }
                         }
-                    );
-            
-                });
+
+                        // KORAK 5: Upis stavke (VRAĆENI broj_ugovora i datum_zakljucenja na kraj upita)
+                        const sqlStavka = `INSERT INTO stavke 
+                            (konto_id, ugovor_id, datum_nabavke, br_racuna, naziv_artikla, 
+                            kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                            status_placanja, datum_placanja, institut, ime_fajla, dobavljac, 
+                            broj_nabavke, partija, broj_ugovora, datum_zakljucenja) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                        const paramsStavka = [
+                            aktuelniKontoId, 
+                            ugovorIdZaBazu, // INT id ili null
+                            formatirajZaBazu(s.datum), 
+                            s.br_racuna, 
+                            s.artikal,
+                            s.kolicina, 
+                            s.cenaBez, 
+                            s.cenaSa, 
+                            s.vrednostBez, 
+                            s.vrednostSa,
+                            s.status, 
+                            formatirajZaBazu(s.datumPla), 
+                            s.institut, 
+                            s.nazivFajla, 
+                            s.dobavljac, 
+                            s.broj_nabavke, 
+                            s.partija,
+                            cistiBrojUgovora, // Tekstualni broj ugovora za istoriju u stavci
+                            formatirajZaBazu(s.datum_zakljucenja) // Proveri kako ti se tačno zove polje u servisu!
+                        ];
+
+                        await new Promise((resolve, reject) => {
+                            db.query(sqlStavka, paramsStavka, (errStavka) => {
+                                if (errStavka) {
+                                    reject(errStavka);
+                                } else {
+                                    obradjeno++;
+                                    resolve();
+                                }
+                            });
+                        });
+
+                        proveriKraj();
+
+                    } catch (loopError) {
+                        console.error("❌ MySQL Greška kod stavke:", loopError); 
+                        greske++;
+                        detaljiGresaka.push({
+                            artikal: s.artikal || "Nepoznato",
+                            poruka: loopError.message || loopError.toString()
+                        });
+                        proveriKraj();
+                    }
+                }
+            })();
+        }
 
         function proveriKraj() {
             if (obradjeno + greske === sveStavke.length) {
                 res.json({ 
-                    success: true, 
-                    message: `Skeniranje završeno. Uspešno dodato: ${obradjeno}. Grešaka: ${greske}.` 
+                    success: greske === 0, // Biće false ako je ijedna stavka pukla
+                    message: `Skeniranje završeno. Uspešno dodato: ${obradjeno}. Grešaka: ${greske}.`,
+                    detaljiGresaka: detaljiGresaka
                 });
             }
         }
@@ -324,6 +384,21 @@ app.post('/azuriraj-sredstva-konta', (req, res) => {
         
         // Tek kada baza potvrdi uspeh, šaljemo odgovor klijentu
         res.json({ success: true });
+    });
+});
+
+app.get('/ugovori', (req, res) => {
+    // Izvlačimo sve ugovore iz baze
+    const sql = "SELECT * FROM ugovori ORDER BY id DESC";
+    
+    db.query(sql, (err, rezultati) => {
+        if (err) {
+            console.error("Greška pri čitanju ugovora:", err);
+            return res.status(500).send("Greška na serveru prilikom čitanja ugovora.");
+        }
+        
+        // Prikazujemo ugovori.ejs šablon i prosleđujemo mu podatke iz baze
+        res.render('ugovori', { ugovori: rezultati });
     });
 });
 

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>Pregled Ugovora</title>
+    <link rel="stylesheet" href="/style.css"> 
+</head>
+<body>
+
+    <div class="navigacija" style="padding: 20px; background: #f4f4f4; margin-bottom: 20px;">
+        <a href="/" style="font-weight: bold; text-decoration: none; color: #333;">⬅ Nazad na Stavke i Konta</a>
+    </div>
+
+    <div style="padding: 0 20px;">
+        <h2>📋 Pregled svih ugovora i realizacije</h2>
+        
+        <table border="1" style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 15px;">
+            <thead>
+                <tr style="background-color: #eaeaea;">
+                    <th style="padding: 10px;">Broj Ugovora</th>
+                    <th style="padding: 10px;">Vrednost bez PDV</th>
+                    <th style="padding: 10px;">Vrednost sa PDV</th>
+                    <th style="padding: 10px; color: #c97d00;">Utrošeno bez PDV</th>
+                    <th style="padding: 10px; color: #c97d00;">Utrošeno sa PDV</th>
+                    <th style="padding: 10px; color: #00875a;">Preostalo bez PDV</th>
+                    <th style="padding: 10px; color: #00875a;">Preostalo sa PDV</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% ugovori.forEach(u => { %>
+                    <tr>
+                        <td style="padding: 10px; font-weight: bold;"><%= u.broj_ugovora %></td>
+                        <td style="padding: 10px;"><%= parseFloat(u.vrednost_bez_pdv).toFixed(2) %></td>
+                        <td style="padding: 10px;"><%= parseFloat(u.vrednost_sa_pdv).toFixed(2) %></td>
+                        <td style="padding: 10px; background-color: #fff9e6;"><%= parseFloat(u.utroseno_bez_pdv).toFixed(2) %></td>
+                        <td style="padding: 10px; background-color: #fff9e6;"><%= parseFloat(u.utroseno_sa_pdv).toFixed(2) %></td>
+                        <td style="padding: 10px; background-color: #e6f7ed; color: #00875a; font-weight: bold;"><%= parseFloat(u.ostalo_bez_pdv).toFixed(2) %></td>
+                        <td style="padding: 10px; background-color: #e6f7ed; color: #00875a; font-weight: bold;"><%= parseFloat(u.ostalo_sa_pdv).toFixed(2) %></td>
+                    </tr>
+                <% }); %>
+                
+                <% if (ugovori.length === 0) { %>
+                    <tr>
+                        <td colspan="7" style="padding: 20px; text-align: center; color: #777;">Trenutno nema unetih ugovora u bazi.</td>
+                    </tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
