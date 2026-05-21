@@ -3,50 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <title>Pregled Ugovora</title>
-    <link rel="stylesheet" href="/style.css"> 
+    <link rel="stylesheet" href="/css/style.css"> 
+    <style>
+        /* Dodatni stilovi specifični za tabelu ugovora */
+        .tabela-ugovori {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .tabela-ugovori th {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 13px;
+        }
+        .tabela-ugovori td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+        }
+        .tabela-ugovori tr:hover {
+            background-color: #f8f9fa;
+        }
+        /* Stil za ćelije koje mogu da se kliknu i menjaju */
+        .izmenljiva-razlika {
+            cursor: pointer;
+            background-color: #fffdf0; /* Blago žućkasta podloga da asocira na izmenu */
+            font-weight: bold;
+            transition: background 0.2s ease;
+            position: relative;
+        }
+        .izmenljiva-razlika:hover {
+            background-color: #ffe8a1 !important; /* Jača boja na hover */
+        }
+        .izmenljiva-razlika::after {
+            content: " ✏️";
+            font-size: 11px;
+            opacity: 0.3;
+        }
+        .izmenljiva-razlika:hover::after {
+            opacity: 1;
+        }
+        /* Poravnanje brojeva desno */
+        .Broj {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Stilovi za alarm koji uspešno rade */
+        table.tabela-ugovori td.upozorenje-red {
+            background-color: #f8d7da !important;
+            color: #842029 !important;
+            font-weight: bold !important;
+            border-left: 5px solid #dc3545 !important;
+        }
+
+        table.tabela-ugovori tr:hover td.upozorenje-red {
+            background-color: #f5c2c7 !important;
+        }
+    </style>
 </head>
 <body>
 
-    <div class="navigacija" style="padding: 20px; background: #f4f4f4; margin-bottom: 20px;">
-        <a href="/" style="font-weight: bold; text-decoration: none; color: #333;">⬅ Nazad na Stavke i Konta</a>
+    <div style="margin: 20px;">
+        <a href="/" style="display: inline-block; padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; transition: background 0.2s;">
+            ⬅ Nazad na Stavke i Konta
+        </a>
     </div>
 
     <div style="padding: 0 20px;">
-        <h2>📋 Pregled svih ugovora i realizacije</h2>
+        <h2 style="color: #333; margin-bottom: 5px;">📋 Pregled svih ugovora i realizacije</h2>
+        <p style="color: #666; font-size: 14px;">Kliknite na polja obojena žutom bojom kako biste ručno uneli ili izmenili ugovorenu vrednost.</p>
         
-        <table border="1" style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 15px;">
+        <table class="tabela-ugovori">
             <thead>
-                <tr style="background-color: #eaeaea;">
-                    <th style="padding: 10px;">Broj Ugovora</th>
-                    <th style="padding: 10px;">Vrednost bez PDV</th>
-                    <th style="padding: 10px;">Vrednost sa PDV</th>
-                    <th style="padding: 10px; color: #c97d00;">Utrošeno bez PDV</th>
-                    <th style="padding: 10px; color: #c97d00;">Utrošeno sa PDV</th>
-                    <th style="padding: 10px; color: #00875a;">Preostalo bez PDV</th>
-                    <th style="padding: 10px; color: #00875a;">Preostalo sa PDV</th>
+                <tr>
+                    <th>Broj Ugovora</th>
+                    <th class="Broj">Vrednost bez PDV</th>
+                    <th class="Broj">Vrednost sa PDV</th>
+                    <th class="Broj">Utrošeno bez PDV</th>
+                    <th class="Broj">Utrošeno sa PDV</th>
+                    <th class="Broj">Preostalo bez PDV</th>
+                    <th class="Broj">Preostalo sa PDV</th>
                 </tr>
             </thead>
             <tbody>
-                <% ugovori.forEach(u => { %>
+                <% ugovori.forEach(ugovor => { %>
                     <tr>
-                        <td style="padding: 10px; font-weight: bold;"><%= u.broj_ugovora %></td>
-                        <td style="padding: 10px;"><%= parseFloat(u.vrednost_bez_pdv).toFixed(2) %></td>
-                        <td style="padding: 10px;"><%= parseFloat(u.vrednost_sa_pdv).toFixed(2) %></td>
-                        <td style="padding: 10px; background-color: #fff9e6;"><%= parseFloat(u.utroseno_bez_pdv).toFixed(2) %></td>
-                        <td style="padding: 10px; background-color: #fff9e6;"><%= parseFloat(u.utroseno_sa_pdv).toFixed(2) %></td>
-                        <td style="padding: 10px; background-color: #e6f7ed; color: #00875a; font-weight: bold;"><%= parseFloat(u.ostalo_bez_pdv).toFixed(2) %></td>
-                        <td style="padding: 10px; background-color: #e6f7ed; color: #00875a; font-weight: bold;"><%= parseFloat(u.ostalo_sa_pdv).toFixed(2) %></td>
+                        <% 
+                            // Pretvaramo vrednosti u čiste decimalne brojeve pre bilo kakve matematike
+                            let v_sa_pdv = parseFloat(ugovor.vrednost_sa_pdv) || 0;
+                            let u_sa_pdv = parseFloat(ugovor.utroseno_sa_pdv) || 0;
+                            
+                            let klasaBrojaUgovora = "";
+                            let porukaUpozorenja = "";
+                            
+                            if (v_sa_pdv > 0) {
+                                // 1. Normalan slučaj: Ako imamo ugovorenu vrednost, gledamo da li je preko 70%
+                                let procenatPotrosnje = u_sa_pdv / v_sa_pdv;
+                                if (procenatPotrosnje > 0.7) {
+                                    klasaBrojaUgovora = "upozorenje-red";
+                                    porukaUpozorenja = "Upozorenje: Potrošeno je preko 70% ugovora!";
+                                }
+                            } else if (v_sa_pdv === 0 && u_sa_pdv > 0) {
+                                // 2. SPECIJALAN SLUČAJ: Vrednost je 0, a već se troše pare!
+                                // Ovo je automatski alarm jer ugovor ide u debeli minus.
+                                klasaBrojaUgovora = "upozorenje-red";
+                                porukaUpozorenja = "Kritično: Ugovorena vrednost je 0,00, a sredstva se troše!";
+                            }
+                        %>
+                        <td class="<%= klasaBrojaUgovora %>" style="font-weight: 500;" title="<%= porukaUpozorenja %>">
+                            <%= ugovor.broj_ugovora %>
+                        </td>
+
+                        <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
+                            onclick="izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_bez_pdv', <%= Number(ugovor.vrednost_bez_pdv) %>)">
+                            <%= Number(ugovor.vrednost_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
+
+                        <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
+                            onclick="izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_sa_pdv', <%= Number(ugovor.vrednost_sa_pdv) %>)">
+                            <%= Number(ugovor.vrednost_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
+
+                        <td class="Broj" style="color: #c97d00;">
+                            <%= Number(ugovor.utroseno_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
+                        <td class="Broj" style="color: #c97d00;">
+                            <%= Number(ugovor.utroseno_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
+
+                        <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_bez_pdv < 0 ? '#d9534f' : '#28a745' %>">
+                            <%= Number(ugovor.ostalo_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
+                        <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_sa_pdv < 0 ? '#d9534f' : '#28a745' %>">
+                            <%= Number(ugovor.ostalo_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        </td>
                     </tr>
-                <% }); %>
-                
-                <% if (ugovori.length === 0) { %>
-                    <tr>
-                        <td colspan="7" style="padding: 20px; text-align: center; color: #777;">Trenutno nema unetih ugovora u bazi.</td>
-                    </tr>
-                <% } %>
+                <% }) %>
             </tbody>
         </table>
     </div>
 
+    <script src="/js/script.js"></script>
 </body>
 </html>

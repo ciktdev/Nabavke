@@ -162,7 +162,7 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             );
                         });
 
-                        // KORAK 4: Logika za strani ključ ugovora
+                        // KORAK 4: Logika za strani ključ ugovora (SREĐENO DA NE BUCA ZBOG GENERISANIH KOLONA)
                         let ugovorIdZaBazu = null;
                         let cistiBrojUgovora = null;
 
@@ -182,8 +182,8 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             } else {
                                 const noviUgovorId = await new Promise((resolve, reject) => {
                                     db.query(
-                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv, vrednost_sa_pdv, utroseno_bez_pdv, utroseno_sa_pdv, ostalo_bez_pdv, ostalo_sa_pdv) 
-                                         VALUES (?, 0, 0, 0, 0, 0, 0)`,
+                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv, vrednost_sa_pdv, utroseno_bez_pdv, utroseno_sa_pdv) 
+                                         VALUES (?, 0, 0, 0, 0)`,
                                         [cistiBrojUgovora],
                                         (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
                                     );
@@ -219,7 +219,7 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             s.broj_nabavke, 
                             s.partija,
                             cistiBrojUgovora, // Tekstualni broj ugovora za istoriju u stavci
-                            formatirajZaBazu(s.datum_zakljucenja) // Proveri kako ti se tačno zove polje u servisu!
+                            formatirajZaBazu(s.datum_zakljucenja)
                         ];
 
                         await new Promise((resolve, reject) => {
@@ -399,6 +399,31 @@ app.get('/ugovori', (req, res) => {
         
         // Prikazujemo ugovori.ejs šablon i prosleđujemo mu podatke iz baze
         res.render('ugovori', { ugovori: rezultati });
+    });
+});
+
+app.post('/azuriraj-ugovor', (req, res) => {
+    const { id, vrednost_bez_pdv, vrednost_sa_pdv } = req.body;
+
+    // Prvo uzimamo trenutno stanje ugovora iz baze da bismo znali stare vrednosti
+    db.query("SELECT vrednost_bez_pdv, vrednost_sa_pdv FROM ugovori WHERE id = ?", [id], (err, rezultati) => {
+        if (err || rezultati.length === 0) {
+            return res.status(500).json({ success: false, message: "Ugovor nije pronađen." });
+        }
+
+        // Ako je neko polje null (jer nije kliknuto), zadržavamo staru vrednost iz baze
+        const konacnaBez = (vrednost_bez_pdv !== null) ? vrednost_bez_pdv : rezultati[0].vrednost_bez_pdv;
+        const konacnaSa = (vrednost_sa_pdv !== null) ? vrednost_sa_pdv : rezultati[0].vrednost_sa_pdv;
+
+        const sql = `UPDATE ugovori SET vrednost_bez_pdv = ?, vrednost_sa_pdv = ? WHERE id = ?`;
+
+        db.query(sql, [konacnaBez, konacnaSa, id], (err, rezultat) => {
+            if (err) {
+                console.error("Greška pri ažuriranju ugovora:", err);
+                return res.json({ success: false, message: err.message });
+            }
+            res.json({ success: true, message: "Ugovor uspešno ažuriran." });
+        });
     });
 });
 

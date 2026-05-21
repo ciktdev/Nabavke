@@ -47,14 +47,20 @@ async function posaljiSaInputa(inputId) {
         const response = await fetch('/skeniraj', { method: 'POST', body: formData });
         const rezultat = await response.json();
 
-        if (rezultat.success) {
-            // Prikaz detaljne poruke sa servera (Uneto: X, Grešaka: Y)
+        // 💡 OVAJ DEO SMO SADA PREPRAVILI DA BUDE SIGURAN:
+        if (rezultat.message) {
             alert(rezultat.message); 
-            window.location.reload();
+        } else if (rezultat.error) {
+            alert("Greška: " + rezultat.error);
         } else {
-            alert("Greška: " + rezultat.message);
+            alert("Uvoz završen.");
         }
+
+        // 💡 OVA LINIJA SADA STOJI OVDE I OSVEŽAVA STRANICU ČIM KLIKNEŠ NA "OK"
+        window.location.reload();
+
     } catch (err) { 
+        console.error(err);
         alert("Greška pri slanju."); 
     } finally {
         // Vraćanje dugmeta u prvobitno stanje
@@ -473,6 +479,50 @@ function izvrsiSakrivanjeBezCuvanja() {
             celija.style.display = isCekiran ? '' : 'none';
         });
     });
+}
+// NOVA FUNKCIJA ZA IZMENU PREKO PROMPT PROZORA
+async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
+    const nazivPoljaZaPrikaz = polje === 'vrednost_bez_pdv' ? 'vrednost bez PDV-a' : 'vrednost sa PDV-om';
+    
+    // Otvaramo iskkačući prozor sa starom vrednošću kao podrazumevanom
+    let novaVrednost = prompt(`Unesite novu ${nazivPoljaZaPrikaz}:`, trenutnaVrednost);
+    
+    // Ako je korisnik kliknuo "Cancel" ili nije ništa uneo, prekidamo
+    if (novaVrednost === null) return; 
+    
+    // Pretvaramo u broj (ako je prazno ili neispravno, stavljamo 0)
+    novaVrednost = parseFloat(novaVrednost) || 0;
+
+    // Pakujemo podatke (šaljemo oba polja, ali menjamo samo ono koje je kliknuto)
+    let podaciZaSlanje = { id: id };
+    
+    if (polje === 'vrednost_bez_pdv') {
+        podaciZaSlanje.vrednost_bez_pdv = novaVrednost;
+        // Za drugo polje šaljemo trenutno stanje iz baze (može i nula, ali prebaciće ga backend)
+        podaciZaSlanje.vrednost_sa_pdv = null; 
+    } else {
+        podaciZaSlanje.vrednost_bez_pdv = null;
+        podaciZaSlanje.vrednost_sa_pdv = novaVrednost;
+    }
+
+    try {
+        const response = await fetch('/azuriraj-ugovor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(podaciZaSlanje)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            window.location.reload(); // Osvežavamo stronicu za nove proračune
+        } else {
+            alert("Greška prilikom čuvanja: " + data.message);
+        }
+    } catch (error) {
+        console.error("Greška:", error);
+        alert("Došlo je do greške na serveru.");
+    }
 }
 
 // Kada se cela stranica učita, vrati checkboxove i sakrij kolone
