@@ -480,30 +480,20 @@ function izvrsiSakrivanjeBezCuvanja() {
         });
     });
 }
-// NOVA FUNKCIJA ZA IZMENU PREKO PROMPT PROZORA
 async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
-    const nazivPoljaZaPrikaz = polje === 'vrednost_bez_pdv' ? 'vrednost bez PDV-a' : 'vrednost sa PDV-om';
-    
-    // Otvaramo iskkačući prozor sa starom vrednošću kao podrazumevanom
-    let novaVrednost = prompt(`Unesite novu ${nazivPoljaZaPrikaz}:`, trenutnaVrednost);
-    
-    // Ako je korisnik kliknuo "Cancel" ili nije ništa uneo, prekidamo
-    if (novaVrednost === null) return; 
-    
-    // Pretvaramo u broj (ako je prazno ili neispravno, stavljamo 0)
-    novaVrednost = parseFloat(novaVrednost) || 0;
-
-    // Pakujemo podatke (šaljemo oba polja, ali menjamo samo ono koje je kliknuto)
-    let podaciZaSlanje = { id: id };
-    
-    if (polje === 'vrednost_bez_pdv') {
-        podaciZaSlanje.vrednost_bez_pdv = novaVrednost;
-        // Za drugo polje šaljemo trenutno stanje iz baze (može i nula, ali prebaciće ga backend)
-        podaciZaSlanje.vrednost_sa_pdv = null; 
-    } else {
-        podaciZaSlanje.vrednost_bez_pdv = null;
-        podaciZaSlanje.vrednost_sa_pdv = novaVrednost;
+    // Ako klikne na polje sa PDV-om, zabranjujemo izmenu i obaveštavamo ga
+    if (polje === 'vrednost_sa_pdv') {
+        alert("Ovo polje se računa automatski (Vrednost bez PDV * 1.2) i ne može se ručno menjati.");
+        return;
     }
+    
+    let novaVrednost = prompt("Unesite novu vrednost bez PDV-a:", trenutnaVrednost);
+    if (novaVrednost === null || novaVrednost === "") return; 
+
+    const podaciZaSlanje = { 
+        id: id, 
+        vrednost_bez_pdv: parseFloat(novaVrednost) || 0 
+    };
 
     try {
         const response = await fetch('/azuriraj-ugovor', {
@@ -513,14 +503,12 @@ async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
         });
 
         const data = await response.json();
-
         if (data.success) {
-            window.location.reload(); // Osvežavamo stronicu za nove proračune
+            window.location.reload(); // Osvežava stranicu da povuče nove bazične proračune
         } else {
-            alert("Greška prilikom čuvanja: " + data.message);
+            alert("Greška: " + data.message);
         }
     } catch (error) {
-        console.error("Greška:", error);
         alert("Došlo je do greške na serveru.");
     }
 }

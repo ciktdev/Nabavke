@@ -127,9 +127,8 @@
                             <%= Number(ugovor.vrednost_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                         </td>
 
-                        <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
-                            onclick="izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_sa_pdv', <%= Number(ugovor.vrednost_sa_pdv) %>)">
-                            <%= Number(ugovor.vrednost_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        <td>
+                            <%= ugovor.vrednost_sa_pdv !== null ? Number(ugovor.vrednost_sa_pdv).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00' %>
                         </td>
 
                         <td class="Broj" style="color: #c97d00;">

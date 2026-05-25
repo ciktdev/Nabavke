@@ -30,7 +30,6 @@ app.get('/', (req, res) => {
 
     // 2. Logika filtriranja
     if (filteri.pretraga) {
-        // Proveri da li se tvoja kolona zove 'ime' ili 'ime_fonda' (u prethodnim porukama je bila ime_fonda)
         sql += " AND ime LIKE ?";
         params.push(`%${filteri.pretraga}%`);
     }
@@ -162,7 +161,7 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             );
                         });
 
-                        // KORAK 4: Logika za strani ključ ugovora (SREĐENO DA NE BUCA ZBOG GENERISANIH KOLONA)
+                        // KORAK 4: Logika za strani ključ ugovora 
                         let ugovorIdZaBazu = null;
                         let cistiBrojUgovora = null;
 
@@ -182,8 +181,9 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             } else {
                                 const noviUgovorId = await new Promise((resolve, reject) => {
                                     db.query(
-                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv, vrednost_sa_pdv, utroseno_bez_pdv, utroseno_sa_pdv) 
-                                         VALUES (?, 0, 0, 0, 0)`,
+                                        // 💡 Prosleđujemo samo broj_ugovora i bazičnu vrednost (0), ostalo baza računa sama!
+                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
+                                        VALUES (?, 0)`,
                                         [cistiBrojUgovora],
                                         (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
                                     );
@@ -192,7 +192,7 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
                             }
                         }
 
-                        // KORAK 5: Upis stavke (VRAĆENI broj_ugovora i datum_zakljucenja na kraj upita)
+                        // KORAK 5: Upis stavke 
                         const sqlStavka = `INSERT INTO stavke 
                             (konto_id, ugovor_id, datum_nabavke, br_racuna, naziv_artikla, 
                             kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
@@ -403,27 +403,20 @@ app.get('/ugovori', (req, res) => {
 });
 
 app.post('/azuriraj-ugovor', (req, res) => {
-    const { id, vrednost_bez_pdv, vrednost_sa_pdv } = req.body;
+    const { id, vrednost_bez_pdv } = req.body;
 
-    // Prvo uzimamo trenutno stanje ugovora iz baze da bismo znali stare vrednosti
-    db.query("SELECT vrednost_bez_pdv, vrednost_sa_pdv FROM ugovori WHERE id = ?", [id], (err, rezultati) => {
-        if (err || rezultati.length === 0) {
-            return res.status(500).json({ success: false, message: "Ugovor nije pronađen." });
+    // Ako korisnik pošalje prazno ili neispravno polje, stavljamo 0
+    const konacnaBez = parseFloat(vrednost_bez_pdv) || 0;
+
+    // Menjamo samo polje vrednost_bez_pdv, sve ostalo baza preračunava u sekundi sama!
+    const sql = `UPDATE ugovori SET vrednost_bez_pdv = ? WHERE id = ?`;
+
+    db.query(sql, [konacnaBez, id], (err, rezultat) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Greška u bazi." });
         }
-
-        // Ako je neko polje null (jer nije kliknuto), zadržavamo staru vrednost iz baze
-        const konacnaBez = (vrednost_bez_pdv !== null) ? vrednost_bez_pdv : rezultati[0].vrednost_bez_pdv;
-        const konacnaSa = (vrednost_sa_pdv !== null) ? vrednost_sa_pdv : rezultati[0].vrednost_sa_pdv;
-
-        const sql = `UPDATE ugovori SET vrednost_bez_pdv = ?, vrednost_sa_pdv = ? WHERE id = ?`;
-
-        db.query(sql, [konacnaBez, konacnaSa, id], (err, rezultat) => {
-            if (err) {
-                console.error("Greška pri ažuriranju ugovora:", err);
-                return res.json({ success: false, message: err.message });
-            }
-            res.json({ success: true, message: "Ugovor uspešno ažuriran." });
-        });
+        res.json({ success: true, message: "Ugovor uspešno ažuriran!" });
     });
 });
 
