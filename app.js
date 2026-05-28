@@ -123,137 +123,168 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
             return s; 
         };
 
-        function pokreniUpisStavki() {
-            (async () => {
-                for (const s of sveStavke) {
-                    try {
-                        // KORAK 1: Upis u fond
-                        await new Promise((resolve, reject) => {
-                            db.query(
-                                "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
-                                [s.ime_fonda, s.godina],
-                                (err) => err ? reject(err) : resolve()
-                            );
-                        });
+function pokreniUpisStavki() {
+    (async () => {
+        // Ako je niz prazan, odmah završavamo
+        if (!sveStavke || sveStavke.length === 0) {
+            return res.json({ success: true, message: "Nema stavki za upis." });
+        }
 
-                        const nazivKonta = s.konto;
-                        // KORAK 2: Upis u konto
-                        await new Promise((resolve, reject) => {
-                            db.query(
-                                "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
-                                [s.ime_fonda, s.godina, nazivKonta],
-                                (errKonto) => errKonto ? reject(errKonto) : resolve()
-                            );
-                        });
+        for (const s of sveStavke) {
+            try {
+                // Čistimo tekstualne vrednosti od praznih mesta
+                const cistoImeFonda = s.ime_fonda ? s.ime_fonda.toString().trim() : '';
+                const cistoImeKonta = s.konto ? s.konto.toString().trim() : '';
+                const cistArtikal = s.artikal ? s.artikal.toString().trim() : 'Nepoznat artikal';
 
-                        // KORAK 3: Pronalaženje ID-a konta
-                        const aktuelniKontoId = await new Promise((resolve, reject) => {
-                            db.query(
-                                "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
-                                [s.ime_fonda, s.godina, nazivKonta],
-                                (errSelect, rezultati) => {
-                                    if (errSelect || rezultati.length === 0) {
-                                        reject(errSelect || new Error("Konto nije pronađen"));
-                                    } else {
-                                        resolve(rezultati[0].id);
-                                    }
-                                }
-                            );
-                        });
+                // 💡 OBAVEZAN USLOV: Ako fali Konto (Kolona A) ili Izvor finansiranja (Kolona E), odmah bacamo grešku
+                if (!cistoImeKonta || cistoImeKonta === '' || cistoImeKonta === '0' || cistoImeKonta === '-') {
+                    throw new Error(`U Excelu nedostaje ili je neispravan 'Konto' za artikal`);
+                }
+                
+                if (!cistoImeFonda || cistoImeFonda === '' || cistoImeFonda === '0' || cistoImeFonda === '-') {
+                    throw new Error(`U Excelu nedostaje ili je neispravan 'Izvor finansiranja' za artikal `);
+                }
 
-                        // KORAK 4: Logika za strani ključ ugovora 
-                        let ugovorIdZaBazu = null;
-                        let cistiBrojUgovora = null;
+                if (!s.godina || s.godina.toString().trim() === '' || s.godina === 0) {
+                    throw new Error(`U Excelu nedostaje 'Godina' za artikal`);
+                }
 
-                        if (s.broj_ugovora && s.broj_ugovora.toString().trim() !== '' && s.broj_ugovora !== '-') {
-                            cistiBrojUgovora = s.broj_ugovora.toString().trim();
+                // ------------------------------------------------------------------
+                // Ako su gornji uslovi ispunjeni, radi se upis u bazu
+                // ------------------------------------------------------------------
 
-                            const postojeciUgovori = await new Promise((resolve, reject) => {
-                                db.query(
-                                    "SELECT id FROM ugovori WHERE broj_ugovora = ?",
-                                    [cistiBrojUgovora],
-                                    (errUgovori, rezultati) => errUgovori ? reject(errUgovori) : resolve(rezultati)
-                                );
-                            });
+                // KORAK 1: Upis u fond
+                await new Promise((resolve, reject) => {
+                    db.query(
+                        "INSERT IGNORE INTO fond (ime, godina, sredstva) VALUES (?, ?, 0)",
+                        [s.ime_fonda, s.godina],
+                        (err) => err ? reject(err) : resolve()
+                    );
+                });
 
-                            if (postojeciUgovori.length > 0) {
-                                ugovorIdZaBazu = postojeciUgovori[0].id;
+                const nazivKonta = s.konto;
+                // KORAK 2: Upis u konto
+                await new Promise((resolve, reject) => {
+                    db.query(
+                        "INSERT IGNORE INTO konto (fond_ime, fond_godina, ime_konta, sredstva) VALUES (?, ?, ?, 0)",
+                        [s.ime_fonda, s.godina, nazivKonta],
+                        (errKonto) => errKonto ? reject(errKonto) : resolve()
+                    );
+                });
+
+                // KORAK 3: Pronalaženje ID-a konta
+                const aktuelniKontoId = await new Promise((resolve, reject) => {
+                    db.query(
+                        "SELECT id FROM konto WHERE fond_ime = ? AND fond_godina = ? AND ime_konta = ?",
+                        [s.ime_fonda, s.godina, nazivKonta],
+                        (errSelect, rezultati) => {
+                            if (errSelect || rezultati.length === 0) {
+                                reject(errSelect || new Error("Konto nije uspešno pronađen u bazi"));
                             } else {
-                                const noviUgovorId = await new Promise((resolve, reject) => {
-                                    db.query(
-                                        // 💡 Prosleđujemo samo broj_ugovora i bazičnu vrednost (0), ostalo baza računa sama!
-                                        `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
-                                        VALUES (?, 0)`,
-                                        [cistiBrojUgovora],
-                                        (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
-                                    );
-                                });
-                                ugovorIdZaBazu = noviUgovorId;
+                                resolve(rezultati[0].id);
                             }
                         }
+                    );
+                });
 
-                        // KORAK 5: Upis stavke 
-                        const sqlStavka = `INSERT INTO stavke 
-                            (konto_id, ugovor_id, datum_nabavke, br_racuna, naziv_artikla, 
-                            kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
-                            status_placanja, datum_placanja, institut, ime_fajla, dobavljac, 
-                            broj_nabavke, partija, broj_ugovora, datum_zakljucenja) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                // KORAK 4: Logika za strani ključ ugovora 
+                let ugovorIdZaBazu = null;
+                let cistiBrojUgovora = null;
 
-                        const paramsStavka = [
-                            aktuelniKontoId, 
-                            ugovorIdZaBazu, // INT id ili null
-                            formatirajZaBazu(s.datum), 
-                            s.br_racuna, 
-                            s.artikal,
-                            s.kolicina, 
-                            s.cenaBez, 
-                            s.cenaSa, 
-                            s.vrednostBez, 
-                            s.vrednostSa,
-                            s.status, 
-                            formatirajZaBazu(s.datumPla), 
-                            s.institut, 
-                            s.nazivFajla, 
-                            s.dobavljac, 
-                            s.broj_nabavke, 
-                            s.partija,
-                            cistiBrojUgovora, // Tekstualni broj ugovora za istoriju u stavci
-                            formatirajZaBazu(s.datum_zakljucenja)
-                        ];
+                if (s.broj_ugovora && s.broj_ugovora.toString().trim() !== '' && s.broj_ugovora !== '-') {
+                    cistiBrojUgovora = s.broj_ugovora.toString().trim();
 
-                        await new Promise((resolve, reject) => {
-                            db.query(sqlStavka, paramsStavka, (errStavka) => {
-                                if (errStavka) {
-                                    reject(errStavka);
-                                } else {
-                                    obradjeno++;
-                                    resolve();
-                                }
-                            });
+                    const postojeciUgovori = await new Promise((resolve, reject) => {
+                        db.query(
+                            "SELECT id FROM ugovori WHERE broj_ugovora = ?",
+                            [cistiBrojUgovora],
+                            (errUgovori, rezultati) => errUgovori ? reject(errUgovori) : resolve(rezultati)
+                        );
+                    });
+
+                    if (postojeciUgovori.length > 0) {
+                        ugovorIdZaBazu = postojeciUgovori[0].id;
+                    } else {
+                        const noviUgovorId = await new Promise((resolve, reject) => {
+                            // 💡 POPRAVKA: Prosleđujemo samo 'broj_ugovora' i 'vrednost_bez_pdv'
+                            // Generisane kolone (poput vrednost_sa_pdv) NE SMEMO slati jer ih baza sama računa!
+                            db.query(
+                                `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
+                                 VALUES (?, 0)`,
+                                [cistiBrojUgovora],
+                                (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
+                            );
                         });
-
-                        proveriKraj();
-
-                    } catch (loopError) {
-                        console.error("❌ MySQL Greška kod stavke:", loopError); 
-                        greske++;
-                        detaljiGresaka.push({
-                            artikal: s.artikal || "Nepoznato",
-                            poruka: loopError.message || loopError.toString()
-                        });
-                        proveriKraj();
+                        ugovorIdZaBazu = noviUgovorId;
                     }
                 }
-            })();
+
+                // KORAK 5: Upis stavke u bazu
+                const sqlStavka = `INSERT INTO stavke 
+                    (konto_id, ugovor_id, datum_nabavke, br_racuna, naziv_artikla, 
+                    kolicina, cena_bez_pdv, cena_sa_pdv, vred_bez_pdv, vred_sa_pdv, 
+                    status_placanja, datum_placanja, institut, ime_fajla, dobavljac, 
+                    broj_nabavke, partija, broj_ugovora, datum_zakljucenja) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                const paramsStavka = [
+                    aktuelniKontoId, 
+                    ugovorIdZaBazu, 
+                    formatirajZaBazu(s.datum), 
+                    s.br_racuna, 
+                    s.artikal,
+                    s.kolicina, 
+                    s.cenaBez, 
+                    s.cenaSa, 
+                    s.vrednostBez, 
+                    s.vrednostSa,
+                    s.status, 
+                    formatirajZaBazu(s.datumPla), 
+                    s.institut, 
+                    s.nazivFajla, 
+                    s.dobavljac, 
+                    s.broj_nabavke, 
+                    s.partija,
+                    cistiBrojUgovora, 
+                    formatirajZaBazu(s.datum_zakljucenja)
+                ];
+
+                await new Promise((resolve, reject) => {
+                    db.query(sqlStavka, paramsStavka, (errStavka) => {
+                        if (errStavka) {
+                            reject(errStavka);
+                        } else {
+                            obradjeno++;
+                            resolve();
+                        }
+                    });
+                });
+
+                proveriKraj();
+
+            } catch (loopError) {
+                console.error("❌ Greška prilikom obrade stavke:", loopError.message || loopError); 
+                greske++;
+                
+                detaljiGresaka.push({
+                    artikal: s.artikal || "Nepoznat artikal",
+                    poruka: loopError.message || loopError.toString(),
+                    fajl: s.nazivFajla || "Nepoznat fajl"
+                });
+                
+                proveriKraj();
+            }
         }
+    })();
+}
 
         function proveriKraj() {
             if (obradjeno + greske === sveStavke.length) {
                 res.json({ 
-                    success: greske === 0, // Biće false ako je ijedna stavka pukla
+                    success: greske === 0, 
                     message: `Skeniranje završeno. Uspešno dodato: ${obradjeno}. Grešaka: ${greske}.`,
-                    detaljiGresaka: detaljiGresaka
+                    detaljiGresaka: detaljiGresaka // 💡 Ovo omogućava frontendu da vidi greške baze!
                 });
             }
         }

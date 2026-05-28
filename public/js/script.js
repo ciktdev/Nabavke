@@ -43,27 +43,33 @@ async function posaljiSaInputa(inputId) {
         }
     }
 
-    try {
+   try {
         const response = await fetch('/skeniraj', { method: 'POST', body: formData });
         const rezultat = await response.json();
 
-        // 💡 OVAJ DEO SMO SADA PREPRAVILI DA BUDE SIGURAN:
-        if (rezultat.message) {
+        if (rezultat.success) {
             alert(rezultat.message); 
-        } else if (rezultat.error) {
-            alert("Greška: " + rezultat.error);
         } else {
-            alert("Uvoz završen.");
+            let porukaZaKorisnika = (rezultat.message || "Greška pri uvozu.") + "\n\nDETALJI ZA ISPRAVKU:\n";
+            
+            if (rezultat.detaljiGresaka && rezultat.detaljiGresaka.length > 0) {
+                rezultat.detaljiGresaka.forEach((g, indeks) => {
+                    // 💡 SADA ISPISUJEMO I IME FAJLA
+                    porukaZaKorisnika += `${indeks + 1}. [Fajl: ${g.fajl}]\n   Artikal: "${g.artikal}"\n   Greška: ${g.poruka}\n\n`;
+                });
+            } else {
+                porukaZaKorisnika += "Sistemska greška: " + (rezultat.error || "Nepoznato");
+            }
+            
+            alert(porukaZaKorisnika);
         }
 
-        // 💡 OVA LINIJA SADA STOJI OVDE I OSVEŽAVA STRANICU ČIM KLIKNEŠ NA "OK"
         window.location.reload();
 
     } catch (err) { 
         console.error(err);
-        alert("Greška pri slanju."); 
+        alert("Greška pri komunikaciji sa serverom."); 
     } finally {
-        // Vraćanje dugmeta u prvobitno stanje
         btn.disabled = false;
         btn.innerText = originalniTekst;
     }

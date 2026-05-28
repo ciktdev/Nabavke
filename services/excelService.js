@@ -111,43 +111,53 @@ const izvuciPodatkeIzExcela = (files) => {
                         }
                     }
 
-                    // --- VALIDACIJA I LOGOVANJE ---
-                    // Uslov: Mora imati Fond, Godinu i Naziv artikla, i ne sme biti naslovni red
-                    if (imeFonda && godina && nazivArtikla && imeFonda.toLowerCase() !== 'izvor finansiranja') {
-                        
-                        // Ako prođe validaciju, dodajemo u niz
-                        sveStavke.push({
-                            ime_fonda: imeFonda,
-                            godina: godina,
-                            datum: siroviDatum,
-                            br_racuna: red[kolone.racun] || "/",
-                            artikal: nazivArtikla,
-                            kolicina: parseFloat(red[kolone.kol]) || 0,
-                            cenaBez: parseFloat(red[kolone.cenaBez]) || 0,
-                            cenaSa: parseFloat(red[kolone.cenaSa]) || 0,
-                            vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
-                            vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
-                            status: red[kolone.status] || null,
-                            datumPla: red[kolone.datumPla] || null,
-                            konto: red[kolone.konto],
-                            institut: red[kolone.institut] || null,
-                            nazivFajla: fajl.originalname,
-                            dobavljac: dobavljacSirovo,
-                            broj_nabavke: brojNabavke,
-                            partija: partija,
-                            broj_ugovora: brojUgovora,
-                            datum_zakljucenja: datumUgovoraSirovo
-                        });
+                                // --- VALIDACIJA I LOGOVANJE ---
+                                // Uslov: Mora imati Fond, Godinu i Naziv artikla, i ne sme biti naslovni red
+                                // 1. Čistimo vrednosti da proverimo da li je red stvarno prazan ili pun nula
+            const proveraArtikla = nazivArtikla ? nazivArtikla.toString().trim() : '';
+const proveraRacuna = red[kolone.racun] ? red[kolone.racun].toString().trim() : '';
+const proveraVrednosti = parseFloat(red[kolone.vrednostSa]) || 0;
 
-                        console.log(` -> RED ${i + 1}: DODATO [${godina}] [${imeFonda}] - ${nazivArtikla}`);
+// 1. LABAV USLOV: Red NIJE prazan ako ima naziv artikla ili račun sa stvarnom vrednošću.
+// Ovdje namjerno NE provjeravamo 'imeFonda' i 'konto' kako ne bismo tiho ignorisali redove kojima oni fale!
+if ((proveraArtikla !== '' && proveraArtikla !== '-') || (proveraRacuna !== '' && proveraRacuna !== '/' && proveraVrednosti > 0)) {
 
-                    } else {
-                        // Opciono logovanje zašto je red preskočen (samo ako red nije skroz prazan)
-                        if (imeFonda || nazivArtikla) {
-                            let razlog = !godina ? "fali godina" : (!nazivArtikla ? "fali artikal" : "naslovni red");
-                            console.log(` -> RED ${i + 1}: PRESKOČENO (${razlog})`);
-                        }
-                    }
+    // 💡 IZMENA: Provjeravamo da li je u pitanju naslovni red (samo ako imeFonda uopšte postoji)
+    const nijeNaslovniRed = imeFonda ? imeFonda.toLowerCase() !== 'izvor finansiranja' : true;
+
+    if (nijeNaslovniRed) {
+
+        // Guramo stavku u niz za app.js, čak i ako joj fali fond, godina ili konto.
+        // Tamo će ih dočekati strogi uslovi i izbaciti alert sa tačnom greškom!
+        sveStavke.push({
+            ime_fonda: imeFonda || null,         // Ako fali u Excelu, šalje null
+            godina: godina || null,
+            datum: siroviDatum,
+            br_racuna: red[kolone.racun] || "/",
+            artikal: nazivArtikla || "Nepoznat artikal",
+            kolicina: parseFloat(red[kolone.kol]) || 0,
+            cenaBez: parseFloat(red[kolone.cenaBez]) || 0,
+            cenaSa: parseFloat(red[kolone.cenaSa]) || 0,
+            vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
+            vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
+            status: red[kolone.status] || null,
+            datumPla: red[kolone.datumPla] || null,
+            konto: red[kolone.konto] || null,     // Ako fali u Excelu, šalje null
+            institut: red[kolone.institut] || null,
+            nazivFajla: fajl.originalname,
+            dobavljac: dobavljacSirovo,
+            broj_nabavke: brojNabavke,
+            partija: partija,
+            broj_ugovora: brojUgovora,
+            datum_zakljucenja: datumUgovoraSirovo
+        });
+
+        console.log(` -> RED ${i + 1}: PROSLEDĐEN ZA PROVERU - ${nazivArtikla || 'Bez naziva'}`);
+    }
+} else {
+                // Ovo su pravi prazni redovi sa dna Excela, njih samo tiho ignorišemo
+                console.log(` -> RED ${i + 1}: Ignorisan prazan red sa dna.`);
+            }
                 }
             } else {
                 console.log(`[SKENER] Fajl "${fajl.originalname}" nema potrebne kolone (Izvor finansiranja).`);
