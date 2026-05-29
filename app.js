@@ -137,7 +137,7 @@ function pokreniUpisStavki() {
                 const cistoImeKonta = s.konto ? s.konto.toString().trim() : '';
                 const cistArtikal = s.artikal ? s.artikal.toString().trim() : 'Nepoznat artikal';
 
-                // 💡 OBAVEZAN USLOV: Ako fali Konto (Kolona A) ili Izvor finansiranja (Kolona E), odmah bacamo grešku
+                // 💡 OBAVEZAN USLOV: Ako fali Konto ili Izvor finansiranja, odmah bacamo grešku
                 if (!cistoImeKonta || cistoImeKonta === '' || cistoImeKonta === '0' || cistoImeKonta === '-') {
                     throw new Error(`U Excelu nedostaje ili je neispravan 'Konto' za artikal`);
                 }
@@ -314,7 +314,7 @@ app.post('/dodaj', (req, res) => {
 });
 
 
-// 4. Brisanje fonda (Opciono, ako imaš ovu rutu)
+// 4. Brisanje fonda
 app.post('/obrisi', (req, res) => {
     const { id, lozinka } = req.body;
     if (lozinka !== 'moja_tajna_lozinka') { // Zameni pravom lozinkom
@@ -328,10 +328,9 @@ app.post('/obrisi', (req, res) => {
     });
 });
 
-// Dodaj ovo negde sa ostalim rutama (npr. ispod /dodaj)
 app.post('/azuriraj-sredstva', (req, res) => {
-    const { id, sredstva, lozinka } = req.body;
-    if (lozinka !== 'moja_tajna_lozinka') return res.json({ success: false, message: 'Pogrešna lozinka' });
+    const { id, sredstva, /*lozinka*/ } = req.body;
+    //if (lozinka !== 'moja_tajna_lozinka') return res.json({ success: false, message: 'Pogrešna lozinka' });
 
     const sqlUpdate = "UPDATE fond SET sredstva = ? WHERE id = ?";
     db.query(sqlUpdate, [sredstva, id], (err) => {
@@ -402,9 +401,8 @@ app.post('/azuriraj-sredstva-konta', (req, res) => {
     const { id, sredstva, lozinka } = req.body;
     const TAJNA_LOZINKA = "moja_tajna_lozinka";
 
-    if (lozinka !== TAJNA_LOZINKA) {
-        return res.status(403).json({ success: false, message: "Pogrešna lozinka!" });
-    }
+   // if (lozinka !== TAJNA_LOZINKA) return res.status(403).json({ success: false, message: "Pogrešna lozinka!" });
+
 
     const sql = "UPDATE konto SET sredstva = ? WHERE id = ?";
     db.query(sql, [sredstva, id], (err, result) => {

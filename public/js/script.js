@@ -89,49 +89,48 @@ window.addEventListener("beforeunload", () => {
     localStorage.setItem("scrollPosition", window.scrollY);
 });
 
-// Vraćena funkcija za promenu sredstava u fondu
 function izmeniSredstva(id, ime, trenutnaVrednost) {
     const noviIznos = prompt(`Novi iznos za fond "${ime}":`, trenutnaVrednost);
     if (noviIznos === null || noviIznos === "") return;
 
-    const lozinka = prompt("Unesite lozinku za potvrdu:");
-    if (lozinka) {
-        fetch('/azuriraj-sredstva', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, sredstva: noviIznos, lozinka })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                // Tražimo red fonda. 
-                // Koristimo querySelector da nađemo red koji u sebi ima onclick sa tvojim ID-em
-                const red = document.querySelector(`tr[onclick*="prikaziKonta('${id}')"]`);
+    //const lozinka = prompt("Unesite lozinku za potvrdu:");
+    //if (lozinka) {
+    fetch('/azuriraj-sredstva', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, sredstva: noviIznos, /*lozinka*/ })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Tražimo red fonda. 
+            // Koristimo querySelector da nađemo red koji u sebi ima onclick sa tvojim ID-em
+            const red = document.querySelector(`tr[onclick*="prikaziKonta('${id}')"]`);
             
-                if (red) {
-                    // 1. Ažuriramo kolonu "Sredstva (Planirano)"
-                    // Prema slici to je cells[2]
-                    red.cells[2].innerText = formatirajBroj(data.podaci.sredstva);
-                    red.cells[2].style.fontWeight = 'bold';
+            if (red) {
+                // 1. Ažuriramo kolonu "Sredstva (Planirano)"
+                // Prema slici to je cells[2]
+                red.cells[2].innerText = formatirajBroj(data.podaci.sredstva);
+                red.cells[2].style.fontWeight = 'bold';
 
-                    // 2. Ažuriramo kolonu "Dostupno"
-                    // Prema slici to je cells[4] (pre Akcija)
-                    red.cells[4].innerText = formatirajBroj(data.podaci.dostupna_sredstva);
-            
-                    // Boja i stil za Dostupno
-                    red.cells[4].style.color = data.podaci.dostupna_sredstva < 0 ? 'red' : 'green';
-                    red.cells[4].style.fontWeight = 'bold';
+                // 2. Ažuriramo kolonu "Dostupno"
+                // Prema slici to je cells[4] (pre Akcija)
+                red.cells[4].innerText = formatirajBroj(data.podaci.dostupna_sredstva);
+        
+                // Boja i stil za Dostupno
+                red.cells[4].style.color = data.podaci.dostupna_sredstva < 0 ? 'red' : 'green';
+                red.cells[4].style.fontWeight = 'bold';
 
-                    // 3. Čistimo kolonu "Akcije" (cells[5]) ako je JS tu nešto pogrešno upisao
-                    // Ovde ne diraj ništa osim ako ne vidiš da ti je JS obrisao kanticu
-                }
-            alert("Uspešno ažurirano!");
-    } else {
-        alert("Greška: " + data.message);
-    }
-}); 
+                // 3. Čistimo kolonu "Akcije" (cells[5]) ako je JS tu nešto pogrešno upisao
+                // Ovde ne diraj ništa osim ako ne vidiš da ti je JS obrisao kanticu
+            }
+        alert("Uspešno ažurirano!");
+        } else {
+            alert("Greška: " + data.message);
+        }
+    }); 
 }
-}
+
 
 async function prikaziKonta(fondId) {
     const row = document.getElementById(`fond-expand-${fondId}`);
@@ -151,7 +150,7 @@ async function prikaziKonta(fondId) {
 
         const glavniRed = document.querySelector(`tr[onclick*="prikaziKonta('${fondId}')"]`);
         
-        // Indeksi prema tvojoj tabeli: ID(0), Godina(1), Ime(2)
+        // Indeksi prema tabeli: ID(0), Godina(1), Ime(2)
         const fGodina = glavniRed.cells[0].innerText.trim();
         const fIme = glavniRed.cells[1].innerText.trim();
 
@@ -220,7 +219,6 @@ function filtrirajTabeluStavki(kontoId) {
         const tekstReda = redovi[i].textContent.toLowerCase();
         
         // Proveravamo da li red sadrži SVAKU reč koju smo ukucali (AND logika)
-        // Ako ukucaš "faktura 2024", red mora da ima i "faktura" i "2024"
         const podudaraSe = filterReci.every(rec => tekstReda.includes(rec));
         
         if (podudaraSe) {
@@ -390,13 +388,13 @@ function izmeniSredstvaKonta(id, imeKonta, trenutnaVrednost) {
     const noviIznos = prompt(`Novi iznos za konto "${imeKonta}":`, trenutnaVrednost);
     if (noviIznos === null || noviIznos === "") return;
 
-    const lozinka = prompt("Unesite lozinku za potvrdu:");
-    if (!lozinka) return;
+    //const lozinka = prompt("Unesite lozinku za potvrdu:");
+    //if (!lozinka) return;
 
     fetch('/azuriraj-sredstva-konta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, sredstva: noviIznos, lozinka })
+        body: JSON.stringify({ id, sredstva: noviIznos, /*lozinka*/ })
     })
     .then(async res => {
         const data = await res.json();
