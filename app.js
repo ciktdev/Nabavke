@@ -1,3 +1,5 @@
+const resetujLogove = require('./public_logger');
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -60,6 +62,7 @@ app.get('/', (req, res) => {
 });
 
 app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
+    resetujLogove();
     if (!req.files || req.files.length === 0) {
         return res.json({ success: false, message: "Niste izabrali nijedan fajl." });
     }
@@ -133,6 +136,7 @@ function pokreniUpisStavki() {
         for (const s of sveStavke) {
             try {
                 // Čistimo tekstualne vrednosti od praznih mesta
+                
                 const cistoImeFonda = s.ime_fonda ? s.ime_fonda.toString().trim() : '';
                 const cistoImeKonta = s.konto ? s.konto.toString().trim() : '';
                 const cistArtikal = s.artikal ? s.artikal.toString().trim() : 'Nepoznat artikal';
@@ -317,14 +321,43 @@ app.post('/dodaj', (req, res) => {
 // 4. Brisanje fonda
 app.post('/obrisi', (req, res) => {
     const { id, lozinka } = req.body;
-    if (lozinka !== 'moja_tajna_lozinka') { // Zameni pravom lozinkom
+
+    // 1. Provera lozinke
+    if (lozinka !== 'moja_tajna_lozinka') { 
         return res.json({ success: false, message: "Pogrešna lozinka!" });
     }
 
-    db.query("DELETE FROM fond WHERE id = ?", [id], (err) => {
-        if (err) return res.json({ success: false, message: "Greška u bazi." });
-        upisiULog("BRISANJE", { id });
-        res.json({ success: true });
+    // 2. PRVO tražimo ime i godinu fonda na osnovu ID-a pre nego što ga obrišemo
+    const sqlSelektuj = "SELECT ime, godina FROM fond WHERE id = ?";
+    
+    db.query(sqlSelektuj, [id], (errSelect, rezultati) => {
+        if (errSelect) {
+            console.error("Greška pri pronalaženju fonda za log:", errSelect);
+            return res.status(500).json({ success: false, message: "Greška na serveru." });
+        }
+
+        if (rezultati.length === 0) {
+            return res.json({ success: false, message: "Fond već ne postoji ili je obrisan." });
+        }
+
+        // Uzimamo podatke o fondu koji će biti obrisan
+        const stariFond = rezultati[0];
+        const infoZaLog = `${stariFond.ime} ${stariFond.godina}`;
+
+        // 3. Sada kada imamo informacije, bezbedno brišemo fond iz baze
+        const sqlObrisi = "DELETE FROM fond WHERE id = ?";
+        db.query(sqlObrisi, [id], (errDelete) => {
+            if (errDelete) {
+                console.error("Greška pri brisanju fonda:", errDelete);
+                return res.status(500).json({ success: false, message: "Greška pri brisanju iz baze." });
+            }
+
+            // 4. 💡 UPIS U LOG: Umesto samo ID-a, sada šaljemo lep i informativan string!
+            upisiULog("BRISANJE FONDA", { fond: infoZaLog });
+
+            // Vraćamo uspeh frontendu
+            res.json({ success: true });
+        });
     });
 });
 
@@ -446,6 +479,37 @@ app.post('/azuriraj-ugovor', (req, res) => {
             return res.status(500).json({ success: false, message: "Greška u bazi." });
         }
         res.json({ success: true, message: "Ugovor uspešno ažuriran!" });
+    });
+});
+
+const fs = require('fs'); // Proveri da li već imaš fs na vrhu fajla
+
+app.get('/admin/logovi', (req, res) => {
+    // Čitamo oba fajla sa diska
+    // Koristimo try-catch u slučaju da neki od fajlova još uvek nije kreiran
+    let konzolaSadrzaj = "Nema zapisa u logu konzole.";
+    let greskeSadrzaj = "Nema zapisa u logu grešaka.";
+    let promeneSadrzaj = "Nema zapisa u logu promena.";
+
+    try {
+        if (fs.existsSync('./sve_konzole.log')) {
+            konzolaSadrzaj = fs.readFileSync('./sve_konzole.log', 'utf-8');
+        }
+        if (fs.existsSync('./sve_greske.log')) {
+            greskeSadrzaj = fs.readFileSync('./sve_greske.log', 'utf-8');
+        }
+        if (fs.existsSync('./promene.log')) {
+            promeneSadrzaj = fs.readFileSync('./promene.log', 'utf-8');
+        }
+    } catch (err) {
+        console.error("Greška pri čitanju log fajlova:", err);
+    }
+
+    // Prikazujemo novi ejs fajl i šaljemo mu tekstove logova
+    res.render('logovi', { 
+        konzola: konzolaSadrzaj, 
+        greske: greskeSadrzaj, 
+        promene: promeneSadrzaj 
     });
 });
 

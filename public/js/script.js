@@ -314,7 +314,7 @@ async function prikaziStavkeKonta(kontoId) {
             stavke.forEach(s => {
                 const dNabavke = formatirajZaPrikaz(s.datum_nabavke);
                 const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
-                const dUgovora = formatirajZaPrikaz(s.datum_ugovora || s.datumUgovora);
+                const dUgovora = formatirajZaPrikaz(s.datum_zakljucenja);
 
                 html += `
                     <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
