@@ -318,48 +318,6 @@ app.post('/dodaj', (req, res) => {
 });
 
 
-// 4. Brisanje fonda
-app.post('/obrisi', (req, res) => {
-    const { id, lozinka } = req.body;
-
-    // 1. Provera lozinke
-    if (lozinka !== 'moja_tajna_lozinka') { 
-        return res.json({ success: false, message: "Pogrešna lozinka!" });
-    }
-
-    // 2. PRVO tražimo ime i godinu fonda na osnovu ID-a pre nego što ga obrišemo
-    const sqlSelektuj = "SELECT ime, godina FROM fond WHERE id = ?";
-    
-    db.query(sqlSelektuj, [id], (errSelect, rezultati) => {
-        if (errSelect) {
-            console.error("Greška pri pronalaženju fonda za log:", errSelect);
-            return res.status(500).json({ success: false, message: "Greška na serveru." });
-        }
-
-        if (rezultati.length === 0) {
-            return res.json({ success: false, message: "Fond već ne postoji ili je obrisan." });
-        }
-
-        // Uzimamo podatke o fondu koji će biti obrisan
-        const stariFond = rezultati[0];
-        const infoZaLog = `${stariFond.ime} ${stariFond.godina}`;
-
-        // 3. Sada kada imamo informacije, bezbedno brišemo fond iz baze
-        const sqlObrisi = "DELETE FROM fond WHERE id = ?";
-        db.query(sqlObrisi, [id], (errDelete) => {
-            if (errDelete) {
-                console.error("Greška pri brisanju fonda:", errDelete);
-                return res.status(500).json({ success: false, message: "Greška pri brisanju iz baze." });
-            }
-
-            // 4. 💡 UPIS U LOG: Umesto samo ID-a, sada šaljemo lep i informativan string!
-            upisiULog("BRISANJE FONDA", { fond: infoZaLog });
-
-            // Vraćamo uspeh frontendu
-            res.json({ success: true });
-        });
-    });
-});
 
 app.post('/azuriraj-sredstva', (req, res) => {
     const { id, sredstva, /*lozinka*/ } = req.body;

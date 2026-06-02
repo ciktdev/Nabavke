@@ -18,9 +18,9 @@ const izvuciPodatkeIzExcela = (files) => {
             }
 
             // --- DIREKTNO ČITANJE FIKSNIH ĆELIJA (A1, A2, A3) ---
-            const dobavljacSirovo = sheet['A1'] ? sheet['A1'].v.toString().trim() : '';
-            const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().trim() : '';
-            const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().trim() : '';
+            const dobavljacSirovo = sheet['A1'] ? sheet['A1'].v.toString().toUpperCase().trim() : '';
+            const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().toUpperCase().trim() : '';
+            const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().toUpperCase().trim() : '';
 
             let brojNabavke = nabavkaPartijaSirovo;
             let partija = null;

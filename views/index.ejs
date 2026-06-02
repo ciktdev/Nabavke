@@ -25,7 +25,7 @@
             <input type="text" name="ime" placeholder="Izvor finansiranja" required>
             <input type="number" name="sredstva" placeholder="Iznos" required>
             <input type="number" name="godina" value="<%= new Date().getFullYear() %>" placeholder="Godina" required>
-            <button type="submit">Dodaj fond</button>
+            <button type="submit">Dodaj izvor finansiranja</button>
         </form>
     </div>
 
@@ -92,7 +92,7 @@
                 </th>
                 <th>
                     <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=ime&order=<%= (filteri.sort_by === '' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
-                        Ime fonda <%= filteri.sort_by === 'ime' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
+                        Izvor finansiranja <%= filteri.sort_by === 'ime' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
                     </a>
                 </th>
                 <th>
@@ -103,8 +103,6 @@
                 
                 <th>Utrošeno (Suma kontova)</th>
                 <th>Dostupno</th>
-                
-                <th>Akcije</th>
             </tr>
         </thead>
         <tbody>
@@ -127,11 +125,7 @@
                    <%= Number(fond.dostupna_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                 </td>
                 
-                <td>
-                    <button class="btn-obrisi" onclick="event.stopPropagation(); potvrdiBrisanje('<%= fond.id %>', '<%= fond.ime %>')">
-                        🗑️
-                    </button> 
-                </td>
+                
             </tr>
 
             <tr id="fond-expand-<%= fond.id %>" class="fond-expand-red" style="display: none;">
