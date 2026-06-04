@@ -10,7 +10,15 @@ const izvuciPodatkeIzExcela = (files) => {
         try {
             //const nazivFajla = putanja.basename(fajl);
             const workbook = xlsx.read(fajl.buffer, { type: 'buffer' });
-            const sheet = workbook.Sheets["REALIZACIJA"];
+            
+            // 💡 Dinamički pronalazimo tab "realizacija" bez obzira na mala/velika slova
+            const stvarniNazivSheeta = workbook.SheetNames.find(
+                name => name.toLowerCase().trim() === 'realizacija'
+            );
+            
+            // Uzimamo pronađeni sheet (ako postoji)
+            const sheet = stvarniNazivSheeta ? workbook.Sheets[stvarniNazivSheeta] : null;
+            
             console.log(`\n[SKENER] Obrađujem fajl: ${fajl.originalname}`);
             if (!sheet) {
                 console.log(`[SKENER] Preskačem fajl "${fajl.originalname}" - nema taba REALIZACIJA.`);
