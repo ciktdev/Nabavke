@@ -341,6 +341,48 @@ app.post('/azuriraj-sredstva', (req, res) => {
     });
 });
 
+// 💡 NOVA RUTA: Dinamičko ažuriranje pojedinačnog statusa i datuma plaćanja u tabeli stavki
+app.post('/azuriraj-status-stavke', (req, res) => {
+    const { id, status_placanja, datum_placanja } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: "Nedostaje ID stavke." });
+    }
+
+    let sql = "UPDATE stavke SET ";
+    let params = [];
+
+    // Ako sa frontenda stiže izmena statusa
+    if (status_placanja !== undefined) {
+        sql += "status_placanja = ? ";
+        params.push(status_placanja);
+        
+        // Ako status prebacujemo na bilo šta što nije 'placeno' (npr. 'za placanje'),
+        // automatski brišemo datum plaćanja iz baze (postavljamo NULL)
+        if (status_placanja !== 'placeno') {
+            sql += ", datum_placanja = NULL ";
+        }
+    } 
+    // Ako sa frontenda stiže izmena datuma plaćanja
+    else if (datum_placanja !== undefined) {
+        sql += "datum_placanja = ? ";
+        // Ako je prosleđen prazan string (obrisan datum u kalendaru), upisujemo NULL u bazu
+        params.push(datum_placanja === "" ? null : datum_placanja);
+    }
+
+    sql += "WHERE id = ?";
+    params.push(id);
+
+    db.query(sql, params, (err, rezultat) => {
+        if (err) {
+            console.error("Greška pri ažuriranju stanja plaćanja:", err);
+            return res.status(500).json({ success: false, message: "Greška na serveru." });
+        }
+        // Vraćamo uspeh u JSON formatu koji tvoj fetch na frontend-u očekuje
+        res.json({ success: true });
+    });
+});
+
 // Ruta za dobijanje kontova za određeni fond
 app.get('/api/fond/:id/kontovi', (req, res) => {
     const fondId = req.params.id;
@@ -443,8 +485,6 @@ app.post('/azuriraj-ugovor', (req, res) => {
 const fs = require('fs'); // Proveri da li već imaš fs na vrhu fajla
 
 app.get('/admin/logovi', (req, res) => {
-    // Čitamo oba fajla sa diska
-    // Koristimo try-catch u slučaju da neki od fajlova još uvek nije kreiran
     let konzolaSadrzaj = "Nema zapisa u logu konzole.";
     let greskeSadrzaj = "Nema zapisa u logu grešaka.";
     let promeneSadrzaj = "Nema zapisa u logu promena.";
@@ -463,13 +503,21 @@ app.get('/admin/logovi', (req, res) => {
         console.error("Greška pri čitanju log fajlova:", err);
     }
 
-    // Prikazujemo novi ejs fajl i šaljemo mu tekstove logova
     res.render('logovi', { 
         konzola: konzolaSadrzaj, 
         greske: greskeSadrzaj, 
         promene: promeneSadrzaj 
     });
 });
+
+app.get('/api/ugovor/:id/stavke', (req, res) => {
+    const ugovorId = req.params.id;
+    db.query('SELECT s.*, k.fond_ime FROM stavke s JOIN konto k on s.konto_id = k.id WHERE ugovor_id = ?', [ugovorId], (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json(results);
+    });
+});
+
 
 const PORT = 3000;
 app.listen(PORT, () => {

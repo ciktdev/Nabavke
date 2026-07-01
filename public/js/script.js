@@ -251,7 +251,7 @@ async function prikaziStavkeKonta(kontoId) {
         const response = await fetch(`/api/konto/${kontoId}/stavke`);
         const stavke = await response.json();
 
-        // Funkcija za formatiranje datuma (ona ojačana verzija)
+        // Funkcija za formatiranje datuma
         const formatirajZaPrikaz = (input) => {
             if (!input || input === '-') return '-';
             if (typeof input === 'string') {
@@ -274,7 +274,6 @@ async function prikaziStavkeKonta(kontoId) {
             return Number(br).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
-        // 1. DODAJEMO INPUT POLJE ZA FILTER IZNAD TABELE
         let html = `
             <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px;">
                 <input type="text" 
@@ -315,6 +314,12 @@ async function prikaziStavkeKonta(kontoId) {
                 const dNabavke = formatirajZaPrikaz(s.datum_nabavke);
                 const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
                 const dUgovora = formatirajZaPrikaz(s.datum_zakljucenja);
+                
+                // 💡 LOGIKA ZA BOJU POZADINE BEZ TEXTA:
+                let stilDatuma = 'padding: 8px; cursor: pointer; text-align: center; transition: background 0.3s;';
+                if ((s.status_placanja || '').toLowerCase() === 'placeno' && (!s.datum_placanja || s.datum_placanja === '-')) {
+                    stilDatuma += ' background-color: #fff3cd;'; // Nežna pastelno žuta pozadina
+                }
 
                 html += `
                     <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
@@ -331,10 +336,17 @@ async function prikaziStavkeKonta(kontoId) {
                         <td class="col-cena-sa" style="padding: 8px;">${f(s.cena_sa_pdv || s.cenaSa)}</td>
                         <td class="col-vred-bez" style="padding: 8px;">${f(s.vred_bez_pdv || s.vrednostBez)}</td>
                         <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
-                        <td class="col-status" style="padding: 8px;">
-                            <span class="badge-${(s.status_placanja || 'nepoznato').toLowerCase()}">${s.status_placanja || '-'}</span>
+                        
+                        <td class="col-status" style="padding: 8px; cursor: pointer;" 
+                            onclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}')">
+                            <span class="badge-${(s.status_placanja || 'za placanje').toLowerCase().replace(' ', '-')}">${s.status_placanja || '-'}</span>
                         </td>
-                        <td class="col-datum-pl" style="padding: 8px;">${dPlacanja}</td>
+
+                        <td class="col-datum-pl" style="${stilDatuma}" 
+                            onclick="omoguciIzmenuDatumaPlacanja(this, ${s.id}, '${s.status_placanja || 'za placanje'}', '${s.datum_placanja || '-'}')">
+                            ${dPlacanja}
+                        </td>
+                        
                         <td class="col-institut" style="padding: 8px;">${s.institut || '-'}</td>
                         <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${s.ime_fajla || s.nazivFajla || '-'}</td>
                     </tr>`;
@@ -516,7 +528,145 @@ async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
         alert("Došlo je do greške na serveru.");
     }
 }
+// 🚀 1. PROMENA STATUSA JEDNIM KLIKOM (Sa suptilnim bojenjem pozadine)
+async function promeniStatusKlikom(tdElement, stavkaId, trenutniStatus) {
+    const noviStatus = trenutniStatus === 'placeno' ? 'za placanje' : 'placeno';
 
+    try {
+        const response = await fetch('/azuriraj-status-stavke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: stavkaId, status_placanja: noviStatus })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const klasaBedza = noviStatus.toLowerCase().replace(' ', '-');
+            tdElement.innerHTML = `<span class="badge-${klasaBedza}">${noviStatus}</span>`;
+            tdElement.setAttribute('onclick', `promeniStatusKlikom(this, ${stavkaId}, '${noviStatus}')`);
+
+            // Pronalazimo ćeliju za DATUM PLAĆANJA
+            const sveDatumCelije = document.querySelectorAll('.col-datum-pl');
+            let ciljanaDatumCelija = null;
+            sveDatumCelije.forEach(td => {
+                if (td.getAttribute('onclick') && td.getAttribute('onclick').includes(`omoguciIzmenuDatumaPlacanja(this, ${stavkaId}`)) {
+                    ciljanaDatumCelija = td;
+                }
+            });
+
+            if (ciljanaDatumCelija) {
+                let trenutniDatumTekst = ciljanaDatumCelija.textContent.trim();
+
+                if (noviStatus === 'placeno' && trenutniDatumTekst === '-') {
+                    // 💡 Ako je plaćeno a nema datum, samo bojimo pozadinu u nežno žutu
+                    ciljanaDatumCelija.style.backgroundColor = '#fff3cd';
+                } else if (noviStatus !== 'placeno') {
+                    // Ako više nije plaćeno, vraćamo na normalno i čistimo tekst
+                    ciljanaDatumCelija.innerHTML = '-';
+                    ciljanaDatumCelija.style.backgroundColor = 'transparent';
+                    trenutniDatumTekst = '-';
+                }
+                
+                ciljanaDatumCelija.setAttribute('onclick', `omoguciIzmenuDatumaPlacanja(this, ${stavkaId}, '${noviStatus}', '${trenutniDatumTekst}')`);
+            }
+        } else {
+            alert(data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Greška pri promeni statusa.");
+    }
+}
+
+// 📅 2. OBRADA KLIKA NA DATUM (Ostaje ista, čista)
+function omoguciIzmenuDatumaPlacanja(tdElement, stavkaId, trenutniStatus, trenutniDatum) {
+    if (trenutniStatus !== 'placeno') {
+        alert("Datum plaćanja možete uneti samo ako je status postavljen na 'Plaćeno'.");
+        return;
+    }
+    if (tdElement.querySelector('input')) return;
+
+    const originalniHtml = tdElement.innerHTML;
+
+    let formatiranZaInput = "";
+    if (trenutniDatum && trenutniDatum !== '-') {
+        const delovi = trenutniDatum.split('.');
+        if (delovi.length === 3) {
+            formatiranZaInput = `${delovi[2]}-${delovi[1].padStart(2, '0')}-${delovi[0].padStart(2, '0')}`;
+        }
+    }
+
+    tdElement.innerHTML = `
+        <input type="date" value="${formatiranZaInput}" 
+            style="padding: 4px; font-family: inherit;"
+            onchange="snimiDatumStavke(${stavkaId}, this.value)" 
+            onblur="setTimeout(() => { this.parentElement.innerHTML = \`${originalniHtml}\`; }, 200)">
+    `;
+    
+    const input = tdElement.querySelector('input');
+    input.focus();
+    if (typeof input.showPicker === 'function') {
+        input.showPicker();
+    }
+}
+
+// 💾 3. SLANJE NOVOG DATUMA NA BACKEND (Sklanja boju čim se unese datum)
+async function snimiDatumStavke(id, noviDatum) {
+    try {
+        const response = await fetch('/azuriraj-status-stavke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, datum_placanja: noviDatum })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const sveDatumCelije = document.querySelectorAll('.col-datum-pl');
+            let ciljanaDatumCelija = null;
+            sveDatumCelije.forEach(td => {
+                if (td.getAttribute('onclick') && td.getAttribute('onclick').includes(`omoguciIzmenuDatumaPlacanja(this, ${id}`)) {
+                    ciljanaDatumCelija = td;
+                }
+            });
+
+            let prikazDatuma = '-';
+            let parametarZaOnclick = '-';
+
+            if (noviDatum) {
+                const delovi = noviDatum.split('-');
+                if (delovi.length === 3) {
+                    prikazDatuma = `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
+                    parametarZaOnclick = prikazDatuma;
+                }
+            }
+
+            if (ciljanaDatumCelija) {
+                ciljanaDatumCelija.innerHTML = prikazDatuma;
+                
+                // 💡 Ako je unet datum, sklanjamo žutu pozadinu. Ako je obrisan, vraćamo je.
+                if (noviDatum) {
+                    ciljanaDatumCelija.style.backgroundColor = 'transparent';
+                } else {
+                    ciljanaDatumCelija.style.backgroundColor = '#fff3cd';
+                }
+                
+                ciljanaDatumCelija.setAttribute('onclick', `omoguciIzmenuDatumaPlacanja(this, ${id}, 'placeno', '${parametarZaOnclick}')`);
+            }
+            
+            const sveStatusCelije = document.querySelectorAll('.col-status');
+            sveStatusCelije.forEach(tdStatus => {
+                if (tdStatus.getAttribute('onclick') && tdStatus.getAttribute('onclick').includes(`promeniStatusKlikom(this, ${id}`)) {
+                    tdStatus.setAttribute('onclick', `promeniStatusKlikom(this, ${id}, 'placeno')`);
+                }
+            });
+        } else {
+            alert(data.message);
+        }
+    } catch (e) { 
+        console.error(e);
+        alert("Greška pri čuvanju datuma."); 
+    }
+}
 // Kada se cela stranica učita, vrati checkboxove i sakrij kolone
 window.addEventListener('DOMContentLoaded', () => {
     ucitajPodesavanjaKolona();
