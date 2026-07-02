@@ -191,6 +191,33 @@
 </body>
 
 <script>
+
+function filtrirajTabeluStavkiUgovora(ugovorId) {
+    // ISPRAVKA: Ovde sada tražimo 'filter-stavki-ugovora' umesto 'filter-input-ugovor'
+    const input = document.getElementById(`filter-stavki-ugovora-${ugovorId}`);
+    if (!input) return;
+
+    const filter = input.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    // Pronalazi redove samo unutar tabele tog konkretnog ugovora
+    const redovi = document.querySelectorAll(`#tabela-stavki-ugovora-${ugovorId} tbody .stavka-red`);
+    
+    let vidljivo = 0;
+    redovi.forEach(red => {
+        const tekst = red.textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        if (tekst.includes(filter)) {
+            red.style.display = "";
+            vidljivo++;
+        } else {
+            red.style.display = "none";
+        }
+    });
+
+    const brojac = document.getElementById(`count-ugovor-${ugovorId}`);
+    if (brojac) brojac.innerText = vidljivo;
+}
+
 async function prikaziStavkeUgovora(ugovorId) {
     const row = document.getElementById(`ugovor-expand-${ugovorId}`);
     const glavniRedUgovora = document.getElementById(`ugovor-glavni-${ugovorId}`);
