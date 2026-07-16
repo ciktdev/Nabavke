@@ -213,10 +213,11 @@ function pokreniUpisStavki() {
                         const noviUgovorId = await new Promise((resolve, reject) => {
                             // 💡 POPRAVKA: Prosleđujemo samo 'broj_ugovora' i 'vrednost_bez_pdv'
                             // Generisane kolone (poput vrednost_sa_pdv) NE SMEMO slati jer ih baza sama računa!
+                            console.log(s.vrednost_ugovora_bez_pdv)
                             db.query(
                                 `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
-                                 VALUES (?, 0)`,
-                                [cistiBrojUgovora],
+                                 VALUES (?, ?)`,
+                                [cistiBrojUgovora, s.vrednost_ugovora_bez_pdv],
                                 (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
                             );
                         });
@@ -518,6 +519,38 @@ app.get('/api/ugovor/:id/stavke', (req, res) => {
     });
 });
 
+app.post('/obrisi', (req, res) => {
+    const { id } = req.body;
+    
+    // Dodaj ovo za debagovanje
+    console.log("Pokušaj brisanja fonda sa ID-jem:", id);
+
+    db.query("SELECT utrosena_sredstva FROM fond WHERE id = ?", [id], (err, results) => {
+        if (err) {
+            console.error("SQL Greška:", err); // Ovo će ti reći da li je problem u upitu
+            return res.json({ success: false, message: "Greška u komunikaciji sa bazom." });
+        }
+        
+        if (results.length === 0) {
+            console.warn("Fond sa ID-jem", id, "nije pronađen u bazi.");
+            return res.json({ success: false, message: "Fond nije pronađen u bazi podataka." });
+        }
+
+        const utroseno = parseFloat(results[0].utrosena_sredstva || 0);
+
+        if (utroseno !== 0) {
+            return res.json({ success: false, message: "Ne možete obrisati fond koji ima utrošena sredstva!" });
+        }
+
+        db.query("DELETE FROM fond WHERE id = ?", [id], (err) => {
+            if (err) {
+                console.error("SQL Greška pri brisanju:", err);
+                return res.json({ success: false, message: "Greška pri brisanju." });
+            }
+            res.json({ success: true, message: "Fond je uspešno obrisan." });
+        });
+    });
+});
 
 const PORT = 3000;
 app.listen(PORT, () => {

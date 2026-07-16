@@ -6,23 +6,6 @@ function formatirajBroj(broj) {
         maximumFractionDigits: 2
     });
 }
-// Globalne funkcije za brisanje i uvoz ostaju slične, ali fokus je na novoj navigaciji
-async function potvrdiBrisanje(id, ime) {
-    if (!confirm(`Da li ste sigurni da želite da obrišete fond: ${ime}?`)) return;
-    let lozinka = prompt("Unesite administratorsku lozinku:");
-    if (!lozinka) return;
-
-    try {
-        const response = await fetch('/obrisi', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `id=${id}&lozinka=${encodeURIComponent(lozinka)}`
-        });
-        const data = await response.json();
-        if (data.success) window.location.reload();
-        else alert(data.message);
-    } catch (error) { alert("Greška na serveru."); }
-}
 
 async function posaljiSaInputa(inputId) {
     const input = document.getElementById(inputId);
@@ -666,6 +649,32 @@ async function snimiDatumStavke(id, noviDatum) {
         console.error(e);
         alert("Greška pri čuvanju datuma."); 
     }
+}
+
+async function obrisiFond(fondId) {
+
+    console.log("Kliknuto za ID:", fondId); // Ako ovo ne vidis u F12 -> Console, dugme nije dobro povezano
+
+    if (!confirm("Da li ste sigurni da želite da obrišete ovaj fond? Ova operacija je trajna.")) {
+        return;
+    }
+
+    // 2. Slanje zahteva
+    fetch('/obrisi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: fondId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Osveži stranicu
+        } else {
+            alert(data.message); // Prikazuje upozorenje o utrošenim sredstvima
+        }
+    })
+    .catch(err => console.error("Greška:", err));
 }
 // Kada se cela stranica učita, vrati checkboxove i sakrij kolone
 window.addEventListener('DOMContentLoaded', () => {

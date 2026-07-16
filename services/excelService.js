@@ -29,7 +29,7 @@ const izvuciPodatkeIzExcela = (files) => {
             const dobavljacSirovo = sheet['A1'] ? sheet['A1'].v.toString().toUpperCase().trim() : '';
             const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().toUpperCase().trim() : '';
             const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().toUpperCase().trim() : '';
-
+            const vrednost_ugovora_bez_pdv = sheet['A4'] ? parseFloat(sheet['A4'].v.toString()) : 0;
             let brojNabavke = nabavkaPartijaSirovo;
             let partija = null;
 
@@ -157,7 +157,8 @@ const izvuciPodatkeIzExcela = (files) => {
                                 broj_nabavke: brojNabavke,
                                 partija: partija,
                                 broj_ugovora: brojUgovora,
-                                datum_zakljucenja: datumUgovoraSirovo
+                                datum_zakljucenja: datumUgovoraSirovo,
+                                vrednost_ugovora_bez_pdv: vrednost_ugovora_bez_pdv
                             });
 
                             console.log(` -> RED ${i + 1}: PROSLEDĐEN ZA PROVERU - ${nazivArtikla || 'Bez naziva'}`);

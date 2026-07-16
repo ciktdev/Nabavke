@@ -1,3 +1,4 @@
-[2. 7. 2026. 10:13:19] LOG: ◇ injected env (4) from .env [2m// tip: ⌁ auth for agents [www.vestauth.com][0m
-[2. 7. 2026. 10:13:19] LOG: Server je pokrenut na http://localhost:3000
-[2. 7. 2026. 10:13:19] LOG: Povezan na MySQL bazu preko eksternih parametara!
+[16. 7. 2026. 13:45:25] LOG: ◇ injected env (4) from .env [2m// tip: ⌘ suppress logs { quiet: true }[0m
+[16. 7. 2026. 13:45:26] LOG: Server je pokrenut na http://localhost:3000
+[16. 7. 2026. 13:45:26] LOG: Povezan na MySQL bazu preko eksternih parametara!
+[16. 7. 2026. 13:45:30] LOG: Pokušaj brisanja fonda sa ID-jem: 31247

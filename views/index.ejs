@@ -103,6 +103,7 @@
                 
                 <th>Utrošeno (Suma konta)</th>
                 <th>Dostupno</th>
+                <th>Obrisi </th>
             </tr>
         </thead>
         <tbody>
@@ -124,7 +125,11 @@
                 <td style="font-weight: bold; color: <%= fond.dostupna_sredstva < 0 ? 'red' : 'green' %>">
                    <%= Number(fond.dostupna_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                 </td>
-                
+                <td>
+                    <button onclick="obrisiFond(<%= fond.id %>)" class="btn-obrisi" title="Obriši fond">
+                        🗑️ <%=fond.id%>
+                    </button>
+                </td>
                 
             </tr>
 
