@@ -111,10 +111,12 @@
         <label><input type="checkbox" data-kolona="col-fajl" checked> Excel fajl</label>
     </div>
 </div>
+      
         <table class="tabela-ugovori">
             <thead>
                 <tr>
                     <th>Broj Ugovora</th>
+                    <th>Datum Ugovora</th>
                     <th class="Broj">Vrednost bez PDV</th>
                     <th class="Broj">Vrednost sa PDV</th>
                     <th class="Broj">Utrošeno bez PDV</th>
@@ -151,6 +153,10 @@
                     <%= ugovor.broj_ugovora %>
                 </td>
 
+                <td class="datum-format-celija" data-sirovi-datum="<%= ugovor.datum_zakljucenja %>">
+    <!-- Ostavljamo prazno, JS će popuniti -->
+</td>
+
                 <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
                     onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_bez_pdv', <%= Number(ugovor.vrednost_bez_pdv) %>)">
                     <%= Number(ugovor.vrednost_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
@@ -176,7 +182,7 @@
             </tr>
 
             <tr id="ugovor-expand-<%= ugovor.id %>" style="display: none; background: #fafafa;">
-                <td colspan="7" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
+                <td colspan="8" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
                     <div id="kontejner-stavki-ugovora-<%= ugovor.id %>" style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
                         Učitavanje stavki...
                     </div>
@@ -218,6 +224,35 @@ function filtrirajTabeluStavkiUgovora(ugovorId) {
     if (brojac) brojac.innerText = vidljivo;
 }
 
+const formatirajZaPrikaz = (input) => {
+    // 1. Provera za prazne vrednosti
+    if (!input || input === '-' || input === 'null' || input === 'undefined') return '-';
+    
+    // 2. Kreiramo objekat. 
+    // new Date() u JavaScriptu je jako pametan i sam će prepoznati 
+    // oba formata koja si naveo.
+    const d = new Date(input);
+    
+    // 3. Provera da li je datum validan
+    if (isNaN(d.getTime())) return '-';
+    
+    // 4. Formatiraj i vrati: dd.mm.yyyy.
+    // getMonth() vraća 0-11, zato dodajemo +1
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Pronađi sve ćelije koje treba formatirati
+    const celije = document.querySelectorAll(".datum-format-celija");
+        
+    celije.forEach(celija => {
+        const sirovi = celija.getAttribute("data-sirovi-datum");
+        // Pozivaš funkciju koja je sada globalna i radi u browseru
+        
+        celija.textContent = formatirajZaPrikaz(sirovi);
+    });
+});
+
 async function prikaziStavkeUgovora(ugovorId) {
     const row = document.getElementById(`ugovor-expand-${ugovorId}`);
     const glavniRedUgovora = document.getElementById(`ugovor-glavni-${ugovorId}`);
@@ -238,22 +273,7 @@ async function prikaziStavkeUgovora(ugovorId) {
         const stavke = await response.json();
         console.log(stavke)
         // Funkcija za formatiranje datuma (Identitčna kao kod konta)
-        const formatirajZaPrikaz = (input) => {
-            if (!input || input === '-') return '-';
-            if (typeof input === 'string') {
-                const datumDeo = input.split('T')[0];
-                const delovi = datumDeo.split('-');
-                if (delovi.length === 3) {
-                    if (input.includes('T22:') || input.includes('T23:')) {
-                        const d = new Date(input);
-                        d.setHours(d.getHours() + 5);
-                        return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
-                    }
-                    return `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
-                }
-            }
-            return '-';
-        };
+        
 
         const f = (br) => {
             if (br === undefined || br === null) return '0,00';

@@ -451,7 +451,7 @@ app.post('/azuriraj-sredstva-konta', (req, res) => {
 
 app.get('/ugovori', (req, res) => {
     // Izvlačimo sve ugovore iz baze
-    const sql = "SELECT * FROM ugovori ORDER BY id DESC";
+    const sql = "select distinct u.*, s.datum_zakljucenja  from ugovori u left JOIN stavke s on s.ugovor_id = u.id order by u.id";
     
     db.query(sql, (err, rezultati) => {
         if (err) {
@@ -460,7 +460,7 @@ app.get('/ugovori', (req, res) => {
         }
         
         // Prikazujemo ugovori.ejs šablon i prosleđujemo mu podatke iz baze
-        res.render('ugovori', { ugovori: rezultati });
+        res.render('ugovori', { ugovori: rezultati});
     });
 });
 
