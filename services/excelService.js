@@ -138,7 +138,7 @@ const izvuciPodatkeIzExcela = (files) => {
                             // Guramo stavku u niz za app.js, čak i ako joj fali fond, godina ili konto.
                             // Tamo će ih dočekati strogi uslovi i izbaciti alert sa tačnom greškom!
                             sveStavke.push({
-                                ime_fonda: imeFonda || null,         // Ako fali u Excelu, šalje null
+                                ime_fonda: imeFonda || 'nepoznato',         // Ako fali u Excelu, šalje null
                                 godina: godina || null,
                                 datum: siroviDatum,
                                 br_racuna: red[kolone.racun] || "/",
