@@ -154,8 +154,8 @@
                 </td>
 
                 <td class="datum-format-celija" data-sirovi-datum="<%= ugovor.datum_zakljucenja %>">
-    <!-- Ostavljamo prazno, JS će popuniti -->
-</td>
+                    <!-- Ostavljamo prazno, JS će popuniti -->
+                </td>
 
                 <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
                     onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_bez_pdv', <%= Number(ugovor.vrednost_bez_pdv) %>)">
@@ -166,10 +166,11 @@
                     <%= ugovor.vrednost_sa_pdv !== null ? Number(ugovor.vrednost_sa_pdv).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00' %>
                 </td>
 
-                <td class="Broj" style="color: #c97d00;">
+                <!-- Izmeni ovo -->
+                <td id="utroseno-bez-<%= ugovor.id %>" class="Broj" style="color: #c97d00;">
                     <%= Number(ugovor.utroseno_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                 </td>
-                <td class="Broj" style="color: #c97d00;">
+                <td id="utroseno-sa-<%= ugovor.id %>" class="Broj" style="color: #c97d00;">
                     <%= Number(ugovor.utroseno_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                 </td>
 
@@ -329,6 +330,12 @@ async function prikaziStavkeUgovora(ugovorId) {
                     stilDatuma += ' background-color: #fff3cd;';
                 }
 
+                const statusKlasa = (s.status_placanja || 'za placanje')
+                                                                        .toLowerCase()
+                                                                        .replace('ć', 'c')
+                                                                        .replace('č', 'c')
+                                                                        .replace(' ', '-');
+
                 html += `
                     <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
@@ -347,8 +354,8 @@ async function prikaziStavkeUgovora(ugovorId) {
                         <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
                         
                         <td class="col-status" style="padding: 8px; cursor: pointer;" 
-                            onclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}')">
-                            <span class="badge-${(s.status_placanja || 'za placanje').toLowerCase().replace(' ', '-')}">${s.status_placanja || '-'}</span>
+                            onclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}', ${ugovorId})">
+                            <span class="badge-${statusKlasa}">${s.status_placanja || '-'}</span>
                         </td>
 
                         <td class="col-datum-pl" style="${stilDatuma}" 

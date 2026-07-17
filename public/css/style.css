@@ -124,3 +124,28 @@ tbody tr:hover {
     background-color: #e0e0e0 !important;
     cursor: pointer;
 }
+
+/* Stilovi za bedževe */
+.badge-za-placanje {
+   
+    color: #000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.badge-placeno {
+   
+    color: #28a745;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.badge-stornirano {
+    
+    color: #dc3545;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}

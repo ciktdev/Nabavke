@@ -350,37 +350,51 @@ app.post('/azuriraj-status-stavke', (req, res) => {
         return res.status(400).json({ success: false, message: "Nedostaje ID stavke." });
     }
 
+    // 1. Pripremi SQL za UPDATE
     let sql = "UPDATE stavke SET ";
     let params = [];
 
-    // Ako sa frontenda stiže izmena statusa
     if (status_placanja !== undefined) {
         sql += "status_placanja = ? ";
         params.push(status_placanja);
-        
-        // Ako status prebacujemo na bilo šta što nije 'placeno' (npr. 'za placanje'),
-        // automatski brišemo datum plaćanja iz baze (postavljamo NULL)
         if (status_placanja !== 'placeno') {
             sql += ", datum_placanja = NULL ";
         }
-    } 
-    // Ako sa frontenda stiže izmena datuma plaćanja
-    else if (datum_placanja !== undefined) {
+    } else if (datum_placanja !== undefined) {
         sql += "datum_placanja = ? ";
-        // Ako je prosleđen prazan string (obrisan datum u kalendaru), upisujemo NULL u bazu
         params.push(datum_placanja === "" ? null : datum_placanja);
     }
 
     sql += "WHERE id = ?";
     params.push(id);
 
+    // 2. Izvrši UPDATE
     db.query(sql, params, (err, rezultat) => {
         if (err) {
-            console.error("Greška pri ažuriranju stanja plaćanja:", err);
+            console.error("Greška pri ažuriranju:", err);
             return res.status(500).json({ success: false, message: "Greška na serveru." });
         }
-        // Vraćamo uspeh u JSON formatu koji tvoj fetch na frontend-u očekuje
-        res.json({ success: true });
+
+        // 3. Dohvati konto_id i ugovor_id da znamo šta da osvežimo
+        db.query("SELECT konto_id, ugovor_id FROM stavke WHERE id = ?", [id], (err, rows) => {
+            if (err || rows.length === 0) return res.json({ success: true }); // Ako ne nađe, bar smo update-ovali
+
+            const { konto_id, ugovor_id } = rows[0];
+
+            // 4. Dohvati sveže sume iz baze (trigeri su već odradili svoj posao)
+            let noveSume = { success: true, kontoId: konto_id, ugovorId: ugovor_id };
+
+            db.query("SELECT utrosena_sredstva FROM konto WHERE id = ?", [konto_id], (err, kRows) => {
+                if (kRows.length > 0) noveSume.novaPotrosnjaKonta = kRows[0].utrosena_sredstva;
+
+                db.query("SELECT utroseno_sa_pdv FROM ugovori WHERE id = ?", [ugovor_id], (err, uRows) => {
+                    if (uRows.length > 0) noveSume.novaPotrosnjaUgovora = uRows[uRows.length - 1].utroseno_sa_pdv;
+                    
+                    // 5. Vrati sve podatke frontendu
+                    res.json(noveSume);
+                });
+            });
+        });
     });
 });
 
