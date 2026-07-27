@@ -123,6 +123,7 @@
                     <th class="Broj">Utrošeno sa PDV</th>
                     <th class="Broj">Preostalo bez PDV</th>
                     <th class="Broj">Preostalo sa PDV</th>
+                    <th style="text-align: center; width: 80px;">Akcija</th>
                 </tr>
             </thead>
             <tbody>
@@ -177,13 +178,26 @@
                 <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_bez_pdv < 0 ? '#d9534f' : '#28a745' %>">
                     <%= Number(ugovor.ostalo_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                 </td>
+                
                 <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_sa_pdv < 0 ? '#d9534f' : '#28a745' %>">
                     <%= Number(ugovor.ostalo_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                </td>
+
+                <!-- Nova ćelija sa kantom za brisanje -->
+                <td style="text-align: center;" onclick="event.stopPropagation();">
+                    <button type="button" 
+                            onclick="obrisiUgovorPrag(<%= ugovor.id %>, '<%= ugovor.broj_ugovora %>')" 
+                            title="Obriši ugovor" 
+                            style="background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;"
+                            onmouseover="this.style.background='#ffe6e6'" 
+                            onmouseout="this.style.background='none'">
+                        🗑️
+                    </button>
                 </td>
             </tr>
 
             <tr id="ugovor-expand-<%= ugovor.id %>" style="display: none; background: #fafafa;">
-                <td colspan="8" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
+                <td colspan="9" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
                     <div id="kontejner-stavki-ugovora-<%= ugovor.id %>" style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
                         Učitavanje stavki...
                     </div>
@@ -396,6 +410,32 @@ function primeniPrikazKolona() {
             el.style.display = prikazi ? '' : 'none';
         });
     });
+}
+
+async function obrisiUgovorPrag(ugovorId, brojUgovora) {
+    if (!confirm(`Da li ste sigurni da želite da obrišete ugovor broj: "${brojUgovora}"?\n\nUgovor će biti obrisan SAMO ako nema ni jednu pridruženu stavku.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/obrisi-ugovor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: ugovorId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Osveži stranicu da ugovor nestane iz tabele
+        } else {
+            alert("Brisanje nije uspelo:\n" + data.message);
+        }
+    } catch (e) {
+        console.error("Greška pri brisanju ugovora:", e);
+        alert("Došlo je do greške na mreži prilikom brisanja ugovora.");
+    }
 }
 
 // Vezivanje događaja za promenu stanja checkboxova čim se stranica učita

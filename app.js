@@ -143,15 +143,15 @@ function pokreniUpisStavki() {
 
                 // 💡 OBAVEZAN USLOV: Ako fali Konto ili Izvor finansiranja, odmah bacamo grešku
                 if (!cistoImeKonta || cistoImeKonta === '' || cistoImeKonta === '0' || cistoImeKonta === '-') {
-                    throw new Error(`U Excelu nedostaje ili je neispravan 'Konto' za artikal`);
+                    throw new Error(`U Excelu nedostaje ili je neispravan 'Konto' za ${cistArtikal}`);
                 }
                 
                 if (!cistoImeFonda || cistoImeFonda === '' || cistoImeFonda === '0' || cistoImeFonda === '-') {
-                    throw new Error(`U Excelu nedostaje ili je neispravan 'Izvor finansiranja' za artikal `);
+                    throw new Error(`U Excelu nedostaje ili je neispravan 'Izvor finansiranja' za ${cistArtikal} `);
                 }
 
                 if (!s.godina || s.godina.toString().trim() === '' || s.godina === 0) {
-                    throw new Error(`U Excelu nedostaje 'Godina' za artikal`);
+                    throw new Error(`U Excelu nedostaje 'Godina' za ${cistArtikal}`);
                 }
 
                 // ------------------------------------------------------------------
@@ -209,11 +209,26 @@ function pokreniUpisStavki() {
 
                     if (postojeciUgovori.length > 0) {
                         ugovorIdZaBazu = postojeciUgovori[0].id;
+                        
+                        // Ažuriramo SAMO AKO je vrednost iz Excela različita od 0 
+                        // I ako želimo da štedimo upite, možemo dodati i proveru da li se razlikuje od postojeće u bazi
+                        if (s.vrednost_ugovora_bez_pdv != 0) {
+                            await new Promise((resolve, reject) => {
+                                // SQL menja vrednost samo ako prosleđena vrednost nije ista kao stara (čime izbegavamo beskoristan update)
+                                const sql = `UPDATE ugovori SET vrednost_bez_pdv = ? WHERE id = ? AND (vrednost_bez_pdv <> ? OR vrednost_bez_pdv IS NULL)`;
+                                
+                                db.query(sql, [s.vrednost_ugovora_bez_pdv, ugovorIdZaBazu, s.vrednost_ugovora_bez_pdv], (err, rezultat) => {
+                                    if (err) reject(err);
+                                    else {
+                                        // rezultat.affectedRows će biti 0 ako je vrednost već bila identična, 
+                                        // a 1 ako je stvarno izvršen update!
+                                        resolve();
+                                    }
+                                });
+                            });
+                        }
                     } else {
                         const noviUgovorId = await new Promise((resolve, reject) => {
-                            // 💡 POPRAVKA: Prosleđujemo samo 'broj_ugovora' i 'vrednost_bez_pdv'
-                            // Generisane kolone (poput vrednost_sa_pdv) NE SMEMO slati jer ih baza sama računa!
-                            console.log(s.vrednost_ugovora_bez_pdv)
                             db.query(
                                 `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
                                  VALUES (?, ?)`,
@@ -562,6 +577,42 @@ app.post('/obrisi', (req, res) => {
                 return res.json({ success: false, message: "Greška pri brisanju." });
             }
             res.json({ success: true, message: "Fond je uspešno obrisan." });
+        });
+    });
+});
+
+app.post('/obrisi-ugovor', (req, res) => {
+    const { id } = req.body;
+
+    if (!id) {
+        return res.json({ success: false, message: "Nedostaje ID ugovora." });
+    }
+
+    // 1. Proveravamo koliko stavki pripada ovom ugovoru
+    db.query("SELECT COUNT(*) as broj_stavki FROM stavke WHERE ugovor_id = ?", [id], (err, results) => {
+        if (err) {
+            console.error("Greška pri proveri stavki ugovora:", err);
+            return res.json({ success: false, message: "Greška u bazi podataka." });
+        }
+
+        const brojStavki = results[0].broj_stavki;
+
+        // 2. Ako ima stavki, zabranjujemo brisanje
+        if (brojStavki > 0) {
+            return res.json({ 
+                success: false, 
+                message: `Ne možete obrisati ovaj ugovor jer ima ${brojStavki} povezanih stavki!` 
+            });
+        }
+
+        // 3. Ako nema stavki, slobodno ga brišemo
+        db.query("DELETE FROM ugovori WHERE id = ?", [id], (errDelete) => {
+            if (errDelete) {
+                console.error("Greška pri brisanju ugovora:", errDelete);
+                return res.json({ success: false, message: "Greška pri brisanju ugovora." });
+            }
+
+            res.json({ success: true, message: "Ugovor je uspešno obrisan jer nema stavki." });
         });
     });
 });
