@@ -533,7 +533,7 @@ async function promeniStatusKlikom(tdElement, stavkaId, trenutniStatus, ugovorId
             tdElement.innerHTML = `<span class="badge-${statusKlasa}">${noviStatus}</span>`;
             
             // Ažuriraj onclick same ćelije za status
-            tdElement.setAttribute('onclick', `promeniStatusKlikom(this, ${stavkaId}, '${noviStatus}', ${ugovorId})`);
+            tdElement.setAttribute('ondblclick', `promeniStatusKlikom(this, ${stavkaId}, '${noviStatus}', ${ugovorId})`);
 
             // 2. Ažuriraj onclick atribut ćelije za datum (da bi prepoznala novi status)
             const red = tdElement.closest('tr');
