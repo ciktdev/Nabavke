@@ -481,7 +481,7 @@ app.post('/azuriraj-sredstva-konta', (req, res) => {
 
 app.get('/ugovori', (req, res) => {
     // Izvlačimo sve ugovore iz baze
-    const sql = "select distinct u.*, s.datum_zakljucenja  from ugovori u left JOIN stavke s on s.ugovor_id = u.id order by u.id";
+    const sql = "select distinct u.*, s.datum_zakljucenja  from ugovori u left JOIN stavke s on s.ugovor_id = u.id order by u.id desc";
     
     db.query(sql, (err, rezultati) => {
         if (err) {
