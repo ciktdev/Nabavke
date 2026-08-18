@@ -495,15 +495,21 @@ app.get('/ugovori', (req, res) => {
 });
 
 app.post('/azuriraj-ugovor', (req, res) => {
-    const { id, vrednost_bez_pdv } = req.body;
+    const { id, vrednost_bez_pdv, vrednost_sa_pdv } = req.body;
 
-    // Ako korisnik pošalje prazno ili neispravno polje, stavljamo 0
-    const konacnaBez = parseFloat(vrednost_bez_pdv) || 0;
+    let sql = "";
+    let params = [];
 
-    // Menjamo samo polje vrednost_bez_pdv, sve ostalo baza preračunava u sekundi sama!
-    const sql = `UPDATE ugovori SET vrednost_bez_pdv = ? WHERE id = ?`;
+    // Proveravamo koje je polje poslato sa frontenda
+    if (vrednost_sa_pdv !== undefined) {
+        sql = `UPDATE ugovori SET vrednost_sa_pdv = ? WHERE id = ?`;
+        params = [parseFloat(vrednost_sa_pdv) || 0, id];
+    } else {
+        sql = `UPDATE ugovori SET vrednost_bez_pdv = ? WHERE id = ?`;
+        params = [parseFloat(vrednost_bez_pdv) || 0, id];
+    }
 
-    db.query(sql, [konacnaBez, id], (err, rezultat) => {
+    db.query(sql, params, (err, rezultat) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ success: false, message: "Greška u bazi." });

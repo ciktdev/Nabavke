@@ -480,18 +480,16 @@ function izvrsiSakrivanjeBezCuvanja() {
     });
 }
 async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
-    // Ako klikne na polje sa PDV-om, zabranjujemo izmenu i obaveštavamo ga
-    if (polje === 'vrednost_sa_pdv') {
-        alert("Ovo polje se računa automatski (Vrednost bez PDV * 1.2) i ne može se ručno menjati.");
-        return;
-    }
+    // Dinamički prilagođavamo poruku u zavisnosti od polja
+    const nazivPoljaPoruka = polje === 'vrednost_sa_pdv' ? 'sa PDV-om' : 'bez PDV-a';
     
-    let novaVrednost = prompt("Unesite novu vrednost bez PDV-a:", trenutnaVrednost);
-    if (novaVrednost === null || novaVrednost === "") return; 
+    let novaVrednost = prompt(`Unesite novu vrednost ${nazivPoljaPoruka}:`, trenutnaVrednost);
+    if (novaVrednost === null || novaVrednost.trim() === "") return; 
 
+    // Dinamički kreiramo objekat tako da ključ bude naziv polja ('vrednost_bez_pdv' ili 'vrednost_sa_pdv')
     const podaciZaSlanje = { 
         id: id, 
-        vrednost_bez_pdv: parseFloat(novaVrednost) || 0 
+        [polje]: parseFloat(novaVrednost) || 0 
     };
 
     try {
@@ -503,7 +501,7 @@ async function izmeniPoljeUgovora(id, polje, trenutnaVrednost) {
 
         const data = await response.json();
         if (data.success) {
-            window.location.reload(); // Osvežava stranicu da povuče nove bazične proračune
+            window.location.reload();
         } else {
             alert("Greška: " + data.message);
         }
