@@ -30,6 +30,9 @@ const izvuciPodatkeIzExcela = (files) => {
             const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().toUpperCase().trim() : '';
             const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().toUpperCase().trim() : '';
             const vrednost_ugovora_bez_pdv = sheet['A4'] ? parseFloat(sheet['A4'].v.toString()) : 0;
+            const vrednost_ugovora_sa_pdv = sheet['A5'] ? parseFloat(sheet['A5'].v.toString()) : 0;
+            console.log(vrednost_ugovora_sa_pdv)
+            const organizacionaJedinica = sheet['A6'] ? sheet['A6'].v.toString().toUpperCase().trim() : null;
             let brojNabavke = nabavkaPartijaSirovo;
             let partija = null;
 
@@ -151,14 +154,15 @@ const izvuciPodatkeIzExcela = (files) => {
                                 status: red[kolone.status] || null,
                                 datumPla: red[kolone.datumPla] || null,
                                 konto: red[kolone.konto] || null,     // Ako fali u Excelu, šalje null
-                                institut: red[kolone.institut] || null,
+                                institut: red[kolone.institut] || organizacionaJedinica,
                                 nazivFajla: fajl.originalname,
                                 dobavljac: dobavljacSirovo,
                                 broj_nabavke: brojNabavke,
                                 partija: partija,
                                 broj_ugovora: brojUgovora,
                                 datum_zakljucenja: datumUgovoraSirovo,
-                                vrednost_ugovora_bez_pdv: vrednost_ugovora_bez_pdv
+                                vrednost_ugovora_bez_pdv: vrednost_ugovora_bez_pdv,
+                                vrednost_ugovora_sa_pdv: vrednost_ugovora_sa_pdv
                             });
 
                             console.log(` -> RED ${i + 1}: PROSLEDĐEN ZA PROVERU - ${nazivArtikla || 'Bez naziva'}`);

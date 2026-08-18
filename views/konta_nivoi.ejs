@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>Nivoi Konta</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+        .tabela { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        .tabela th, .tabela td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        .tabela th { background-color: #28a745; color: white; }
+        .forma-box { background: white; padding: 15px; border-radius: 5px; border: 1px solid #ccc; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+
+    <a href="/" style="display: inline-block; padding: 8px 15px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 15px;">⬅ Nazad na početnu</a>
+
+    <h2>📊 Prikaz potrošnje po nivoima konta</h2>
+
+    <form method="GET" action="/konta-nivoi" class="forma-box">
+        <div>
+            <label style="display: block; font-weight: bold;">Broj cifara (Nivo):</label>
+            <input type="number" min="1" max="10" name="duzina" value="<%= odabranaDuzina %>" style="padding: 6px; width: 80px;">
+        </div>
+        <div>
+            <label style="display: block; font-weight: bold;">Prefiks konta:</label>
+            <input type="text" name="prefix" value="<%= odabraniPrefix %>" placeholder="npr. 421" style="padding: 6px; width: 110px;">
+        </div>
+        <div>
+            <label style="display: block; font-weight: bold;">Izvor finansiranja (Fond):</label>
+            <input type="text" name="fond" value="<%= odabraniFond %>" placeholder="npr. RFZO" style="padding: 6px; width: 160px;">
+        </div>
+        <div>
+            <label style="display: block; font-weight: bold;">Godina:</label>
+            <input type="number" name="godina" value="<%= odabranaGodina %>" placeholder="npr. 2025" style="padding: 6px; width: 90px;">
+        </div>
+        <div>
+            <button type="submit" style="padding: 7px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Filtriraj</button>
+            <a href="/konta-nivoi" style="padding: 7px 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">Poništi</a>
+        </div>
+    </form>
+
+    <table class="tabela">
+        <thead>
+            <tr>
+                <th>Razred (Nivo Konta)</th>
+                <th>Izvor finansiranja (Fond)</th>
+                <th>Godina</th>
+                <th style="text-align: right;">Ukupno Utrošeno</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% if (podaci.length === 0) { %>
+                <tr><td colspan="4" style="text-align: center;">Nema podataka za izabrani filter.</td></tr>
+            <% } else { %>
+                <% podaci.forEach(row => { %>
+                    <tr>
+                        <td><strong><%= row.razred %></strong></td>
+                        <td><%= row.fond_ime %></td>
+                        <td><%= row.fond_godina %></td>
+                        <td style="text-align: right; font-weight: bold; color: #c97d00;">
+                            <%= Number(row.ukupno_utroseno || 0).toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %> RSD
+                        </td>
+                    </tr>
+                <% }); %>
+            <% } %>
+        </tbody>
+    </table>
+
+</body>
+</html>

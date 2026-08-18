@@ -95,6 +95,7 @@
         <label><input type="checkbox" data-kolona="col-racun" checked> Br. računa</label>
         <label><input type="checkbox" data-kolona="col-dobavljac" checked> Dobavljač</label>
         <label><input type="checkbox" data-kolona="col-nabavka" checked> Broj nabavke</label>
+        <label><input type="checkbox" data-kolona="col-konto" checked>Konto</label>
         <label><input type="checkbox" data-kolona="col-izvor" checked> Izvor finansiranja</label>
         <label><input type="checkbox" data-kolona="col-partija" checked> Partija</label>
         <label><input type="checkbox" data-kolona="col-ugovor" checked> Broj ugovora</label>
@@ -111,7 +112,9 @@
         <label><input type="checkbox" data-kolona="col-fajl" checked> Excel fajl</label>
     </div>
 </div>
-      
+        <div class="mb-3">
+            <strong>Ukupno unetih ugovora: <%= ugovori.length %></strong>
+        </div>
         <table class="tabela-ugovori">
             <thead>
                 <tr>
@@ -308,9 +311,10 @@ async function prikaziStavkeUgovora(ugovorId) {
             <table id="tabela-stavki-ugovora-${ugovorId}" style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
                 <thead>
                     <tr class="stavke-header" style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                        <th class="col-datum" style="padding: 8px; text-align: left;">Datum nabavke</th>
+                        <th class="col-datum" style="padding: 8px; text-align: left;">Datum fakture</th>
                         <th class="col-racun" style="padding: 8px; text-align: left;">Br. računa</th>
                         <th class="col-dobavljac" style="padding: 8px; text-align: left;">Dobavljač</th>
+                        <th class="col-konto" style="padding: 8px; text-align: left;">Konto</th>
                         <th class="col-izvor" style="padding: 8px; text-align: left;">Izvor Finansiranja</th>
                         <th class="col-nabavka" style="padding: 8px; text-align: left;">Broj nabavke</th>
                         <th class="col-partija" style="padding: 8px; text-align: left;">Partija</th>
@@ -355,6 +359,7 @@ async function prikaziStavkeUgovora(ugovorId) {
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
                         <td class="col-racun" style="padding: 8px;">${s.br_racuna || '-'}</td>
                         <td class="col-dobavljac" style="padding: 8px;">${s.dobavljac || '-'}</td>
+                        <td class="col-konto" style="padding: 8px;">${s.ime_konta}</td>
                         <td class="col-izvor" style="padding: 8px;">${s.fond_ime || '-'}</td>
                         <td class="col-nabavka" style="padding: 8px;">${s.broj_nabavke || s.brojNabavke || '-'}</td>
                         <td class="col-partija" style="padding: 8px;">${s.partija || '-'}</td>

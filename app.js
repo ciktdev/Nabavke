@@ -230,9 +230,9 @@ function pokreniUpisStavki() {
                     } else {
                         const noviUgovorId = await new Promise((resolve, reject) => {
                             db.query(
-                                `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv) 
-                                 VALUES (?, ?)`,
-                                [cistiBrojUgovora, s.vrednost_ugovora_bez_pdv],
+                                `INSERT INTO ugovori (broj_ugovora, vrednost_bez_pdv, vrednost_sa_pdv) 
+                                 VALUES (?, ?, ?)`,
+                                [cistiBrojUgovora, s.vrednost_ugovora_bez_pdv, s.vrednost_ugovora_sa_pdv],
                                 (errNoviUgovor, rezultat) => errNoviUgovor ? reject(errNoviUgovor) : resolve(rezultat.insertId)
                             );
                         });
@@ -542,7 +542,7 @@ app.get('/admin/logovi', (req, res) => {
 
 app.get('/api/ugovor/:id/stavke', (req, res) => {
     const ugovorId = req.params.id;
-    db.query('SELECT s.*, k.fond_ime FROM stavke s JOIN konto k on s.konto_id = k.id WHERE ugovor_id = ?', [ugovorId], (err, results) => {
+    db.query('SELECT s.*, k.fond_ime, k.ime_konta FROM stavke s JOIN konto k on s.konto_id = k.id WHERE ugovor_id = ?', [ugovorId], (err, results) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         res.json(results);
     });
@@ -613,6 +613,62 @@ app.post('/obrisi-ugovor', (req, res) => {
             }
 
             res.json({ success: true, message: "Ugovor je uspešno obrisan jer nema stavki." });
+        });
+    });
+});
+
+app.get('/konta-nivoi', (req, res) => {
+    const duzinaNivoa = parseInt(req.query.duzina) || 7;
+    
+    // Čitanje filtera iz URL-a
+    const unetiPrefix = req.query.prefix ? req.query.prefix.trim() : '';
+    const prefixKonta = unetiPrefix ? `${unetiPrefix}%` : '%';
+
+    const unetiFond = req.query.fond ? req.query.fond.trim() : '';
+    const unetaGodina = req.query.godina ? req.query.godina.trim() : '';
+
+    // Osnovni SQL upit
+    let sql = `
+        SELECT 
+            LEFT(ime_konta, ?) AS razred, 
+            fond_ime,  
+            fond_godina,
+            SUM(utrosena_sredstva) AS ukupno_utroseno
+        FROM konto
+        WHERE ime_konta LIKE ?
+    `;
+    
+    let params = [duzinaNivoa, prefixKonta];
+
+    // Dodavanje dinamičkih filtera za fond i godinu
+    if (unetiFond) {
+        sql += " AND fond_ime LIKE ?";
+        params.push(`%${unetiFond}%`);
+    }
+
+    if (unetaGodina) {
+        sql += " AND fond_godina = ?";
+        params.push(unetaGodina);
+    }
+
+    sql += `
+        GROUP BY LEFT(ime_konta, ?), fond_ime, fond_godina
+        ORDER BY razred ASC, fond_godina DESC
+    `;
+    params.push(duzinaNivoa);
+
+    db.query(sql, params, (err, rezultati) => {
+        if (err) {
+            console.error('Greška pri izračunavanju nivoa konta:', err);
+            return res.status(500).send('Greška na serveru: ' + err.message);
+        }
+
+        res.render('konta_nivoi', { 
+            podaci: rezultati, 
+            odabranaDuzina: duzinaNivoa, 
+            odabraniPrefix: unetiPrefix,
+            odabraniFond: unetiFond,
+            odabranaGodina: unetaGodina
         });
     });
 });
