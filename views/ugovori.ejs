@@ -118,6 +118,7 @@
         <table class="tabela-ugovori">
             <thead>
                 <tr>
+                    <th>R. Br.</th>
                     <th>Broj Ugovora</th>
                     <th>Datum Ugovora</th>
                     <th class="Broj">Vrednost bez PDV</th>
@@ -130,7 +131,7 @@
                 </tr>
             </thead>
             <tbody>
-                <% ugovori.forEach(ugovor => { %>
+                <% ugovori.forEach((ugovor, index) => { %>
                 <% 
                 // Tvoja postojeća logika za računanje alarma i upozorenja
                 let v_sa_pdv = parseFloat(ugovor.vrednost_sa_pdv) || 0;
@@ -153,6 +154,10 @@
 
             <tr id="ugovor-glavni-<%= ugovor.id %>" style="border-bottom: 1px solid #ddd; cursor: pointer;" onclick="prikaziStavkeUgovora(<%= ugovor.id %>)">
                 
+                <!-- REDNI BROJ (počinje od 1) -->
+                <td style="text-align: center; font-weight: bold; color: #555;">
+                    <%= index + 1 %>.
+                </td>
                 <td class="<%= klasaBrojaUgovora %>" style="font-weight: 500;" title="<%= porukaUpozorenja %>">
                     <%= ugovor.broj_ugovora %>
                 </td>
@@ -202,7 +207,7 @@
             </tr>
 
             <tr id="ugovor-expand-<%= ugovor.id %>" style="display: none; background: #fafafa;">
-                <td colspan="9" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
+                <td colspan="10" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
                     <div id="kontejner-stavki-ugovora-<%= ugovor.id %>" style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
                         Učitavanje stavki...
                     </div>
