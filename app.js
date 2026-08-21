@@ -94,30 +94,31 @@ app.post('/skeniraj', upload.array('excelFajlovi'), (req, res) => {
         let greske = 0;
         let detaljiGresaka = []; // Za praćenje detalja ako nešto pukne
 
-        const formatirajZaBazu = (d, nazivPolja = "nepoznato") => {
+       const formatirajZaBazu = (d, nazivPolja = "nepoznato") => {
             if (!d) return null;
 
+            // 1. Obrada Excel rednog broja datuma
             if (typeof d === 'number') {
                 const ms = Math.round((d - 25569) * 86400 * 1000) + (12 * 60 * 60 * 1000);
                 const date = new Date(ms);
                 if (!isNaN(date.getTime())) {
                     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                }
             }
+        }
 
             const s = d.toString().trim();
             if (s === "") return null;
 
-            const delovi = s.split('.');
-            if (delovi.length >= 3) {
-                const dan = delovi[0].trim().padStart(2, '0');
-                const mesec = delovi[1].trim().padStart(2, '0');
-                const godina = delovi[2].trim();
-                if (!isNaN(dan) && !isNaN(mesec) && godina.length >= 4) {
-                    return `${godina}-${mesec}-${dan}`;
-                }
+            // 2. Pronalazi PRVI datum u formatu DD.MM.YYYY (ignoriše nove redove i dodatne datume)
+            const matchDatum = s.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+            if (matchDatum) {
+                const dan = matchDatum[1].padStart(2, '0');
+                const mesec = matchDatum[2].padStart(2, '0');
+                const godina = matchDatum[3];
+                return `${godina}-${mesec}-${dan}`;
             }
 
+            // 3. Provera za ISO format (YYYY-MM-DD)
             const probniDatum = new Date(s);
             if (!isNaN(probniDatum.getTime()) && s.includes('-')) {
                 return `${probniDatum.getFullYear()}-${String(probniDatum.getMonth() + 1).padStart(2, '0')}-${String(probniDatum.getDate()).padStart(2, '0')}`;
