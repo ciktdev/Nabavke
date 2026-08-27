@@ -6,6 +6,7 @@ const multer = require('multer');
 const db = require('./db');
 const upisiULog = require('./logger');
 const excelService = require('./services/excelService'); // JEDINI UVOZ ZA SERVIS
+const narudzbeniceService = require('./services/NarudzbeniceService');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -417,14 +418,30 @@ app.post('/azuriraj-status-stavke', (req, res) => {
 // Ruta za dobijanje kontova za određeni fond
 app.get('/api/fond/:id/kontovi', (req, res) => {
     const fondId = req.params.id;
-    // Spajamo tabele preko imena i godine jer je to veza u tvojoj šemi
+
     const sql = `
-        SELECT k.* FROM konto k
+        SELECT 
+            k.id,
+            k.ime_konta,
+            k.sredstva,
+            k.fond_ime,
+            k.fond_godina,
+            COALESCE(SUM(CASE WHEN LOWER(s.status_placanja) = 'za placanje' THEN COALESCE(s.vred_sa_pdv, 0) ELSE 0 END), 0) AS za_placanje,
+            COALESCE(SUM(CASE WHEN LOWER(s.status_placanja) = 'placeno' THEN COALESCE(s.vred_sa_pdv, 0) ELSE 0 END), 0) AS placeno,
+            COALESCE(SUM(CASE WHEN LOWER(s.status_placanja) IN ('za placanje', 'placeno') THEN COALESCE(s.vred_sa_pdv, 0) ELSE 0 END), 0) AS utrosena_sredstva,
+            (COALESCE(k.sredstva, 0) - COALESCE(SUM(CASE WHEN LOWER(s.status_placanja) IN ('za placanje', 'placeno') THEN COALESCE(s.vred_sa_pdv, 0) ELSE 0 END), 0)) AS dostupna_sredstva
+        FROM konto k
         JOIN fond f ON k.fond_ime = f.ime AND k.fond_godina = f.godina
-        WHERE f.id = ?`;
-    
+        LEFT JOIN stavke s ON s.konto_id = k.id
+        WHERE f.id = ?
+        GROUP BY k.id, k.ime_konta, k.sredstva, k.fond_ime, k.fond_godina
+    `;
+
     db.query(sql, [fondId], (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
+        if (err) {
+            console.error("Greška pri dohvatanju kontova sa sumama:", err);
+            return res.status(500).json({ success: false, error: err.message });
+        }
         res.json(results);
     });
 });
@@ -678,6 +695,192 @@ app.get('/konta-nivoi', (req, res) => {
             odabranaGodina: unetaGodina
         });
     });
+});
+
+const ExcelJS = require('exceljs');
+
+app.get('/izvoz-ugovori-excel', (req, res) => {
+    const sql = `
+        SELECT k.fond_ime, k.ime_konta, s.datum_nabavke, s.br_racuna, s.naziv_artikla, s.kolicina, 
+               s.cena_bez_pdv, s.cena_sa_pdv, s.vred_bez_pdv, s.vred_sa_pdv, s.status_placanja, 
+               s.datum_placanja, s.institut, s.dobavljac, s.broj_nabavke, s.partija, s.broj_ugovora, 
+               s.datum_zakljucenja, u.vrednost_bez_pdv, u.vrednost_sa_pdv, u.utroseno_bez_pdv, 
+               u.utroseno_sa_pdv, u.ostalo_bez_pdv, u.ostalo_sa_pdv 
+        FROM stavke s 
+        LEFT JOIN ugovori u ON s.ugovor_id = u.id 
+        LEFT JOIN konto k ON s.konto_id = k.id
+        ORDER BY s.broj_ugovora
+    `;
+
+    db.query(sql, async (err, rezultati) => {
+        if (err) {
+            console.error("Greška pri dobijanju podataka za Excel:", err);
+            return res.status(500).send("Greška na serveru.");
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Stavke i Ugovori');
+
+        // Definisanje naziva kolona i širine u Excelu
+        worksheet.columns = [
+            { header: 'Izvor finansiranja', key: 'fond_ime', width: 20 },
+            { header: 'Konto', key: 'ime_konta', width: 25 },
+            { header: 'Datum Nabavke', key: 'datum_nabavke', width: 15 },
+            { header: 'Br. Računa', key: 'br_racuna', width: 18 },
+            { header: 'Naziv Artikla', key: 'naziv_artikla', width: 30 },
+            { header: 'Količina', key: 'kolicina', width: 12 },
+            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15 },
+            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15 },
+            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18 },
+            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18 },
+            { header: 'Status Plaćanja', key: 'status_placanja', width: 15 },
+            { header: 'Datum Plaćanja', key: 'datum_placanja', width: 15 },
+            { header: 'Institut', key: 'institut', width: 15 },
+            { header: 'Dobavljač', key: 'dobavljac', width: 25 },
+            { header: 'Broj Nabavke', key: 'broj_nabavke', width: 15 },
+            { header: 'Partija', key: 'partija', width: 12 },
+            { header: 'Broj Ugovora', key: 'broj_ugovora', width: 18 },
+            { header: 'Datum Zaključenja', key: 'datum_zakljucenja', width: 18 },
+            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18 },
+            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18 },
+            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18 },
+            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18 },
+            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18 },
+            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18 }
+        ];
+
+        // Formatiranje zaglavlja (podebljano)
+        worksheet.getRow(1).font = { bold: true };
+
+        // Ubacivanje redova
+        rezultati.forEach(r => worksheet.addRow(r));
+
+        // Postavljanje zaglavlja za preuzimanje fajla
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Izvoz_Ugovora.xlsx"');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    });
+});
+
+app.get('/izvoz-sve-excel', (req, res) => {
+    const sql = `
+        SELECT 
+            k.fond_ime, 
+            k.fond_godina, 
+            f.utrosena_sredstva AS fond_utroseno, 
+            k.ime_konta, 
+            k.utrosena_sredstva AS konto_utroseno, 
+            s.datum_nabavke, 
+            s.br_racuna, 
+            s.naziv_artikla, 
+            s.kolicina, 
+            s.cena_bez_pdv, 
+            s.cena_sa_pdv, 
+            s.vred_bez_pdv, 
+            s.vred_sa_pdv, 
+            s.status_placanja, 
+            s.datum_placanja, 
+            s.institut, 
+            s.dobavljac, 
+            s.broj_nabavke, 
+            s.partija, 
+            s.broj_ugovora, 
+            s.datum_zakljucenja, 
+            u.vrednost_bez_pdv, 
+            u.vrednost_sa_pdv, 
+            u.utroseno_bez_pdv, 
+            u.utroseno_sa_pdv,  
+            u.ostalo_bez_pdv, 
+            u.ostalo_sa_pdv, 
+            s.ime_fajla
+        FROM stavke s 
+        LEFT JOIN ugovori u ON s.ugovor_id = u.id 
+        LEFT JOIN konto k ON s.konto_id = k.id 
+        LEFT JOIN fond f ON k.fond_godina = f.godina AND k.fond_ime = f.ime 
+        ORDER BY k.fond_ime, k.fond_godina, k.ime_konta
+    `;
+
+    db.query(sql, async (err, rezultati) => {
+        if (err) {
+            console.error("Greška pri generisanju Excel fajla:", err);
+            return res.status(500).send("Greška na serveru pri izvozu.");
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Pregled svih stavki');
+
+        worksheet.columns = [
+            { header: 'Izvor finansiranja', key: 'fond_ime', width: 20 },
+            { header: 'Godina', key: 'fond_godina', width: 15 },
+            { header: 'Utrošeno: Izvor finansiranja', key: 'fond_utroseno', width: 18 },
+            { header: 'Konto', key: 'ime_konta', width: 20 },
+            { header: 'Utrošeno Konto', key: 'konto_utroseno', width: 18 },
+            { header: 'Datum Nabavke', key: 'datum_nabavke', width: 15 },
+            { header: 'Br. Računa', key: 'br_racuna', width: 18 },
+            { header: 'Naziv Artikla', key: 'naziv_artikla', width: 30 },
+            { header: 'Količina', key: 'kolicina', width: 12 },
+            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15 },
+            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15 },
+            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18 },
+            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18 },
+            { header: 'Status Plaćanja', key: 'status_placanja', width: 15 },
+            { header: 'Datum Plaćanja', key: 'datum_placanja', width: 15 },
+            { header: 'Institut', key: 'institut', width: 15 },
+            { header: 'Dobavljač', key: 'dobavljac', width: 25 },
+            { header: 'Broj Nabavke', key: 'broj_nabavke', width: 15 },
+            { header: 'Partija', key: 'partija', width: 12 },
+            { header: 'Broj Ugovora', key: 'broj_ugovora', width: 18 },
+            { header: 'Datum Zaključenja', key: 'datum_zakljucenja', width: 18 },
+            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18 },
+            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18 },
+            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18 },
+            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18 },
+            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18 },
+            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18 },
+            { header: 'Ime Fajla', key: 'ime_fajla', width: 25 }
+        ];
+
+        // Formatiranje zaglavlja
+        worksheet.getRow(1).font = { bold: true };
+
+        // Dodavanje podataka u tabelu
+        rezultati.forEach(r => worksheet.addRow(r));
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Kompletan_Izvestaj.xlsx"');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    });
+});
+
+// Prikaz stranice narudžbenica
+app.get('/narudzbenice', (req, res) => {
+    res.render('narudzbenice', { podaci: [] });
+});
+
+// Upload i parsiranje preko memorije
+app.post('/ucitaj-narudzbenice', upload.single('excelFajl'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Niste poslali Excel fajl.' });
+        }
+
+        // Prosleđujemo req.file.buffer direktno u servis
+        const ocitaniPodaci = await narudzbeniceService.parsujNarudzbeniceExcel(req.file.buffer);
+
+        res.json({
+            success: true,
+            brojUcitanihRedova: ocitaniPodaci.length,
+            podaci: ocitaniPodaci
+        });
+
+    } catch (error) {
+        console.error("Greška pri obradi narudžbenica:", error);
+        res.status(500).json({ success: false, message: 'Greška pri obradi Excel fajla.' });
+    }
 });
 
 const PORT = 3000;

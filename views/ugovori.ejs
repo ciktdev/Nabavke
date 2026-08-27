@@ -85,7 +85,15 @@
     </div>
 
     <div style="padding: 0 20px;">
-        <h2 style="color: #333; margin-bottom: 5px;">📋 Pregled svih ugovora i realizacije</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="color: #333; margin: 0;">📋 Pregled svih ugovora i realizacije</h2>
+            <a href="/izvoz-ugovori-excel" 
+            style="background-color: #28a745; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: background 0.2s;"
+            onmouseover="this.style.backgroundColor='#218838'" 
+            onmouseout="this.style.backgroundColor='#28a745'">
+                📊 Izvoz u Excel
+            </a>
+        </div>
         <p style="color: #666; font-size: 14px;">Kliknite na polja obojena žutom bojom kako biste ručno uneli ili izmenili ugovorenu vrednost.</p>
         
         <div id="podesi-prikaz-kolona" style="background: #f8f9fa; border: 1px solid #e3e6f0; padding: 15px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">

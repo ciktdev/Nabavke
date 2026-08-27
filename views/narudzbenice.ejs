@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Učitavanja Narudžbenica</title>
+</head>
+<body style="font-family: sans-serif; padding: 30px;">
+
+    <h2>📦 Test učitavanja Excel narudžbenica</h2>
+
+    <form id="uploadForm">
+        <input type="file" id="excelFajl" name="excelFajl" accept=".xlsx, .xls" required>
+        <button type="submit">Učitaj i Proveri JSON</button>
+    </form>
+
+    <pre id="rezultat" style="background: #f4f4f4; padding: 15px; margin-top: 20px; border-radius: 5px;"></pre>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const fileInput = document.getElementById('excelFajl');
+            formData.append('excelFajl', fileInput.files[0]);
+
+            const response = await fetch('/ucitaj-narudzbenice', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            document.getElementById('rezultat').textContent = JSON.stringify(data, null, 2);
+        });
+    </script>
+</body>
+</html>

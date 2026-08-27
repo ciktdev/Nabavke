@@ -114,7 +114,6 @@ function izmeniSredstva(id, ime, trenutnaVrednost) {
     }); 
 }
 
-
 async function prikaziKonta(fondId) {
     const row = document.getElementById(`fond-expand-${fondId}`);
     const container = document.getElementById(`lista-konta-${fondId}`);
@@ -133,7 +132,6 @@ async function prikaziKonta(fondId) {
 
         const glavniRed = document.querySelector(`tr[onclick*="prikaziKonta('${fondId}')"]`);
         
-        // Indeksi prema tabeli: ID(0), Godina(1), Ime(2)
         const fGodina = glavniRed.cells[0].innerText.trim();
         const fIme = glavniRed.cells[1].innerText.trim();
 
@@ -151,14 +149,16 @@ async function prikaziKonta(fondId) {
                     <tr class="konto-header-red">
                         <th>Konto</th>
                         <th>Planirano (Klikni za izmenu)</th>
-                        <th>Utrošeno</th>
+                        <th>Za plaćanje</th>
+                        <th>Plaćeno</th>
+                        <th>Utrošeno (Ukupno)</th>
                         <th>Dostupno</th>
                     </tr>
                 </thead>
                 <tbody>`;
 
         if (kontovi.length === 0) {
-            html += `<tr><td colspan="4" style="text-align: center; padding: 10px;">Nema kontova. Unesite prvi iznad.</td></tr>`;
+            html += `<tr><td colspan="6" style="text-align: center; padding: 10px;">Nema kontova. Unesite prvi iznad.</td></tr>`;
         } else {
             kontovi.forEach(k => {
                 html += `
@@ -170,14 +170,16 @@ async function prikaziKonta(fondId) {
                             <span id="sredstva-konta-${k.id}">${formatirajBroj(k.sredstva)}</span>
                         </td>
             
-                        <td style="color: #d9534f;">${formatirajBroj(k.utrosena_sredstva)}</td>
+                        <td style="color: #f0ad4e;">${formatirajBroj(k.za_placanje || 0)}</td>
+                        <td style="color: #28a745;">${formatirajBroj(k.placeno || 0)}</td>
+                        <td style="color: #d9534f; font-weight: bold;">${formatirajBroj(k.utrosena_sredstva)}</td>
             
                         <td style="font-weight: bold; color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'};">
                             ${formatirajBroj(k.dostupna_sredstva)}
                         </td>
                     </tr>
                     <tr id="konto-expand-${k.id}" style="display: none;">
-                        <td colspan="4"><div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div></td>
+                        <td colspan="6"><div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div></td>
                     </tr>`;
             });
         }
@@ -186,6 +188,7 @@ async function prikaziKonta(fondId) {
         container.innerHTML = "Greška pri učitavanju kontova."; 
     }
 }
+
 
 function filtrirajTabeluStavki(kontoId) {
     const input = document.getElementById(`filter-stavki-${kontoId}`);
@@ -383,42 +386,37 @@ function izmeniSredstvaKonta(id, imeKonta, trenutnaVrednost) {
     const noviIznos = prompt(`Novi iznos za konto "${imeKonta}":`, trenutnaVrednost);
     if (noviIznos === null || noviIznos === "") return;
 
-    //const lozinka = prompt("Unesite lozinku za potvrdu:");
-    //if (!lozinka) return;
-
     fetch('/azuriraj-sredstva-konta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, sredstva: noviIznos, /*lozinka*/ })
+        body: JSON.stringify({ id, sredstva: noviIznos })
     })
     .then(async res => {
         const data = await res.json();
         if (!res.ok || !data.success) {
-            // Ako status nije 200 ili success nije true, šaljemo grešku u .catch
             throw new Error(data.message || "Server nije potvrdio izmenu.");
         }
         return data;
     })
     .then(data => {
-        // AKO SMO OVDE, ZNAČI DA JE 100% USPELO
         const celijaSredstva = document.getElementById(`sredstva-konta-${id}`);
         if (celijaSredstva) {
             celijaSredstva.innerText = formatirajBroj(noviIznos);
         }
 
         const redKonta = celijaSredstva.closest('tr');
-        // Čišćenje formata za matematiku
-        const utrosenoTekst = redKonta.cells[2].innerText.replace(/\./g, '').replace(',', '.');
+        
+        // Zbog dodatih kolona, Utrošeno je sada na cells[4], a Dostupno na cells[5]
+        const utrosenoTekst = redKonta.cells[4].innerText.replace(/\./g, '').replace(',', '.');
         const utroseno = parseFloat(utrosenoTekst) || 0;
         
-        const dostupnoCelija = redKonta.cells[3];
+        const dostupnoCelija = redKonta.cells[5];
         const novoDostupno = parseFloat(noviIznos) - utroseno;
         
         dostupnoCelija.innerText = formatirajBroj(novoDostupno);
         dostupnoCelija.style.color = novoDostupno < 0 ? 'red' : 'green';
     })
     .catch(err => {
-        // Javlja se samo ako se zaista desila greška (mreža, baza ili lozinka)
         console.error("Detalji:", err);
         alert("GREŠKA: " + err.message);
     });
