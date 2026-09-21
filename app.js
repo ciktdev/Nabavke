@@ -721,6 +721,32 @@ app.get('/izvoz-ugovori-excel', (req, res) => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Stavke i Ugovori');
 
+        // Pomoćne funkcije za pretvaranje u broj i formatiranje datuma
+        const pNum = (val) => {
+            if (val === null || val === undefined || val === '') return 0;
+            const num = parseFloat(val);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const fDat = (val) => {
+            if (!val || val === '-') return '-';
+            if (val instanceof Date) {
+                const d = String(val.getDate()).padStart(2, '0');
+                const m = String(val.getMonth() + 1).padStart(2, '0');
+                const y = val.getFullYear();
+                return `${d}.${m}.${y}.`;
+            }
+            if (typeof val === 'string') {
+                const deo = val.split('T')[0];
+                const delovi = deo.split('-');
+                if (delovi.length === 3) return `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
+            }
+            return val;
+        };
+
+        // Format za novčane iznose (sa razmakom/tačkom za hiljade i 2 decimale)
+        const fmtBroj = { numFmt: '#,##0.00' };
+
         // Definisanje naziva kolona i širine u Excelu
         worksheet.columns = [
             { header: 'Izvor finansiranja', key: 'fond_ime', width: 20 },
@@ -728,11 +754,11 @@ app.get('/izvoz-ugovori-excel', (req, res) => {
             { header: 'Datum Nabavke', key: 'datum_nabavke', width: 15 },
             { header: 'Br. Računa', key: 'br_racuna', width: 18 },
             { header: 'Naziv Artikla', key: 'naziv_artikla', width: 30 },
-            { header: 'Količina', key: 'kolicina', width: 12 },
-            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15 },
-            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15 },
-            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18 },
-            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18 },
+            { header: 'Količina', key: 'kolicina', width: 12, style: { numFmt: '#,##0' } },
+            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15, style: fmtBroj },
+            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15, style: fmtBroj },
+            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18, style: fmtBroj },
             { header: 'Status Plaćanja', key: 'status_placanja', width: 15 },
             { header: 'Datum Plaćanja', key: 'datum_placanja', width: 15 },
             { header: 'Institut', key: 'institut', width: 15 },
@@ -741,19 +767,46 @@ app.get('/izvoz-ugovori-excel', (req, res) => {
             { header: 'Partija', key: 'partija', width: 12 },
             { header: 'Broj Ugovora', key: 'broj_ugovora', width: 18 },
             { header: 'Datum Zaključenja', key: 'datum_zakljucenja', width: 18 },
-            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18 },
-            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18 },
-            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18 },
-            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18 },
-            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18 },
-            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18 }
+            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18, style: fmtBroj },
+            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18, style: fmtBroj },
+            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18, style: fmtBroj }
         ];
 
         // Formatiranje zaglavlja (podebljano)
         worksheet.getRow(1).font = { bold: true };
 
-        // Ubacivanje redova
-        rezultati.forEach(r => worksheet.addRow(r));
+        // Ubacivanje redova sa konvertovanim tipovima
+        rezultati.forEach(r => {
+            worksheet.addRow({
+                fond_ime: r.fond_ime,
+                ime_konta: r.ime_konta,
+                datum_nabavke: fDat(r.datum_nabavke),
+                br_racuna: r.br_racuna,
+                naziv_artikla: r.naziv_artikla,
+                kolicina: pNum(r.kolicina),
+                cena_bez_pdv: pNum(r.cena_bez_pdv),
+                cena_sa_pdv: pNum(r.cena_sa_pdv),
+                vred_bez_pdv: pNum(r.vred_bez_pdv),
+                vred_sa_pdv: pNum(r.vred_sa_pdv),
+                status_placanja: r.status_placanja,
+                datum_placanja: fDat(r.datum_placanja),
+                institut: r.institut,
+                dobavljac: r.dobavljac,
+                broj_nabavke: r.broj_nabavke,
+                partija: r.partija,
+                broj_ugovora: r.broj_ugovora,
+                datum_zakljucenja: fDat(r.datum_zakljucenja),
+                vrednost_bez_pdv: pNum(r.vrednost_bez_pdv),
+                vrednost_sa_pdv: pNum(r.vrednost_sa_pdv),
+                utroseno_bez_pdv: pNum(r.utroseno_bez_pdv),
+                utroseno_sa_pdv: pNum(r.utroseno_sa_pdv),
+                ostalo_bez_pdv: pNum(r.ostalo_bez_pdv),
+                ostalo_sa_pdv: pNum(r.ostalo_sa_pdv)
+            });
+        });
 
         // Postavljanje zaglavlja za preuzimanje fajla
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -811,20 +864,46 @@ app.get('/izvoz-sve-excel', (req, res) => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Pregled svih stavki');
 
+        // Pomoćne funkcije za pretvaranje u broj i formatiranje datuma
+        const pNum = (val) => {
+            if (val === null || val === undefined || val === '') return 0;
+            const num = parseFloat(val);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const fDat = (val) => {
+            if (!val || val === '-') return '-';
+            if (val instanceof Date) {
+                const d = String(val.getDate()).padStart(2, '0');
+                const m = String(val.getMonth() + 1).padStart(2, '0');
+                const y = val.getFullYear();
+                return `${d}.${m}.${y}.`;
+            }
+            if (typeof val === 'string') {
+                const deo = val.split('T')[0];
+                const delovi = deo.split('-');
+                if (delovi.length === 3) return `${delovi[2]}.${delovi[1]}.${delovi[0]}.`;
+            }
+            return val;
+        };
+
+        // Format brojeva sa separatorom hiljada i dve decimale
+        const fmtBroj = { numFmt: '#,##0.00' };
+
         worksheet.columns = [
             { header: 'Izvor finansiranja', key: 'fond_ime', width: 20 },
             { header: 'Godina', key: 'fond_godina', width: 15 },
-            { header: 'Utrošeno: Izvor finansiranja', key: 'fond_utroseno', width: 18 },
+            { header: 'Utrošeno: Izvor finansiranja', key: 'fond_utroseno', width: 18, style: fmtBroj },
             { header: 'Konto', key: 'ime_konta', width: 20 },
-            { header: 'Utrošeno Konto', key: 'konto_utroseno', width: 18 },
+            { header: 'Utrošeno Konto', key: 'konto_utroseno', width: 18, style: fmtBroj },
             { header: 'Datum Nabavke', key: 'datum_nabavke', width: 15 },
             { header: 'Br. Računa', key: 'br_racuna', width: 18 },
             { header: 'Naziv Artikla', key: 'naziv_artikla', width: 30 },
-            { header: 'Količina', key: 'kolicina', width: 12 },
-            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15 },
-            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15 },
-            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18 },
-            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18 },
+            { header: 'Količina', key: 'kolicina', width: 12, style: { numFmt: '#,##0' } },
+            { header: 'Cena bez PDV', key: 'cena_bez_pdv', width: 15, style: fmtBroj },
+            { header: 'Cena sa PDV', key: 'cena_sa_pdv', width: 15, style: fmtBroj },
+            { header: 'Vrednost bez PDV', key: 'vred_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Vrednost sa PDV', key: 'vred_sa_pdv', width: 18, style: fmtBroj },
             { header: 'Status Plaćanja', key: 'status_placanja', width: 15 },
             { header: 'Datum Plaćanja', key: 'datum_placanja', width: 15 },
             { header: 'Institut', key: 'institut', width: 15 },
@@ -833,23 +912,134 @@ app.get('/izvoz-sve-excel', (req, res) => {
             { header: 'Partija', key: 'partija', width: 12 },
             { header: 'Broj Ugovora', key: 'broj_ugovora', width: 18 },
             { header: 'Datum Zaključenja', key: 'datum_zakljucenja', width: 18 },
-            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18 },
-            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18 },
-            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18 },
-            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18 },
-            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18 },
-            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18 },
+            { header: 'Ugovoreno bez PDV', key: 'vrednost_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Ugovoreno sa PDV', key: 'vrednost_sa_pdv', width: 18, style: fmtBroj },
+            { header: 'Utrošeno bez PDV', key: 'utroseno_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Utrošeno sa PDV', key: 'utroseno_sa_pdv', width: 18, style: fmtBroj },
+            { header: 'Preostalo bez PDV', key: 'ostalo_bez_pdv', width: 18, style: fmtBroj },
+            { header: 'Preostalo sa PDV', key: 'ostalo_sa_pdv', width: 18, style: fmtBroj },
             { header: 'Ime Fajla', key: 'ime_fajla', width: 25 }
         ];
 
-        // Formatiranje zaglavlja
+        // Podešavanje zaglavlja
         worksheet.getRow(1).font = { bold: true };
 
-        // Dodavanje podataka u tabelu
-        rezultati.forEach(r => worksheet.addRow(r));
+        // Mapiranje redova i konverzija tipova
+        rezultati.forEach(r => {
+            worksheet.addRow({
+                fond_ime: r.fond_ime,
+                fond_godina: r.fond_godina,
+                fond_utroseno: pNum(r.fond_utroseno),
+                ime_konta: r.ime_konta,
+                konto_utroseno: pNum(r.konto_utroseno),
+                datum_nabavke: fDat(r.datum_nabavke),
+                br_racuna: r.br_racuna,
+                naziv_artikla: r.naziv_artikla,
+                kolicina: pNum(r.kolicina),
+                cena_bez_pdv: pNum(r.cena_bez_pdv),
+                cena_sa_pdv: pNum(r.cena_sa_pdv),
+                vred_bez_pdv: pNum(r.vred_bez_pdv),
+                vred_sa_pdv: pNum(r.vred_sa_pdv),
+                status_placanja: r.status_placanja,
+                datum_placanja: fDat(r.datum_placanja),
+                institut: r.institut,
+                dobavljac: r.dobavljac,
+                broj_nabavke: r.broj_nabavke,
+                partija: r.partija,
+                broj_ugovora: r.broj_ugovora,
+                datum_zakljucenja: fDat(r.datum_zakljucenja),
+                vrednost_bez_pdv: pNum(r.vrednost_bez_pdv),
+                vrednost_sa_pdv: pNum(r.vrednost_sa_pdv),
+                utroseno_bez_pdv: pNum(r.utroseno_bez_pdv),
+                utroseno_sa_pdv: pNum(r.utroseno_sa_pdv),
+                ostalo_bez_pdv: pNum(r.ostalo_bez_pdv),
+                ostalo_sa_pdv: pNum(r.ostalo_sa_pdv),
+                ime_fajla: r.ime_fajla
+            });
+        });
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Kompletan_Izvestaj.xlsx"');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    });
+});
+
+// Ruta za izvoz nivoa konta u Excel
+app.get('/izvoz-konta-nivoi-excel', (req, res) => {
+    const duzinaNivoa = parseInt(req.query.duzina) || 7;
+    const unetiPrefix = req.query.prefix ? req.query.prefix.trim() : '';
+    const prefixKonta = unetiPrefix ? `${unetiPrefix}%` : '%';
+    const unetiFond = req.query.fond ? req.query.fond.trim() : '';
+    const unetaGodina = req.query.godina ? req.query.godina.trim() : '';
+
+    let sql = `
+        SELECT 
+            LEFT(ime_konta, ?) AS razred, 
+            fond_ime,  
+            fond_godina,
+            SUM(utrosena_sredstva) AS ukupno_utroseno
+        FROM konto
+        WHERE ime_konta LIKE ?
+    `;
+    
+    let params = [duzinaNivoa, prefixKonta];
+
+    if (unetiFond) {
+        sql += " AND fond_ime LIKE ?";
+        params.push(`%${unetiFond}%`);
+    }
+
+    if (unetaGodina) {
+        sql += " AND fond_godina = ?";
+        params.push(unetaGodina);
+    }
+
+    sql += `
+        GROUP BY LEFT(ime_konta, ?), fond_ime, fond_godina
+        ORDER BY razred ASC, fond_godina DESC
+    `;
+    params.push(duzinaNivoa);
+
+    db.query(sql, params, async (err, rezultati) => {
+        if (err) {
+            console.error('Greška pri generisanju Excel-a za nivoe konta:', err);
+            return res.status(500).send('Greška na serveru pri izvozu: ' + err.message);
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Nivoi Konta');
+
+        const pNum = (val) => {
+            if (val === null || val === undefined || val === '') return 0;
+            const num = parseFloat(val);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const fmtBroj = { numFmt: '#,##0.00' };
+
+        worksheet.columns = [
+            { header: 'Konto', key: 'razred', width: 20 },
+            { header: 'Izvor finansiranja', key: 'fond_ime', width: 25 },
+            { header: 'Godina', key: 'fond_godina', width: 15 },
+            { header: 'Ukupno Utrošeno (RSD)', key: 'ukupno_utroseno', width: 22, style: fmtBroj }
+        ];
+
+        // Podebljano zaglavlje
+        worksheet.getRow(1).font = { bold: true };
+
+        rezultati.forEach(r => {
+            worksheet.addRow({
+                razred: r.razred,
+                fond_ime: r.fond_ime,
+                fond_godina: r.fond_godina,
+                ukupno_utroseno: pNum(r.ukupno_utroseno)
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Nivoi_Konta.xlsx"');
 
         await workbook.xlsx.write(res);
         res.end();
