@@ -2,33 +2,56 @@
 <html lang="sr">
 <head>
     <meta charset="UTF-8">
-    <title>Test Učitavanja Narudžbenica</title>
+    <title>Učitavanje Narudžbenica</title>
 </head>
 <body style="font-family: sans-serif; padding: 30px;">
 
-    <h2>📦 Test učitavanja Excel narudžbenica</h2>
+    <h2>📦 Učitavanje Excel narudžbenica u bazu</h2>
 
     <form id="uploadForm">
         <input type="file" id="excelFajl" name="excelFajl" accept=".xlsx, .xls" required>
-        <button type="submit">Učitaj i Proveri JSON</button>
+        <button type="submit" id="btnSubmit">Učitaj i Upisi u Bazu</button>
     </form>
-
-    <pre id="rezultat" style="background: #f4f4f4; padding: 15px; margin-top: 20px; border-radius: 5px;"></pre>
 
     <script>
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            const originalniTekst = btn.innerText;
+
+            btn.disabled = true;
+            btn.innerText = "Upisujem u bazu...";
+
             const formData = new FormData();
             const fileInput = document.getElementById('excelFajl');
             formData.append('excelFajl', fileInput.files[0]);
 
-            const response = await fetch('/ucitaj-narudzbenice', {
-                method: 'POST',
-                body: formData
-            });
+            try {
+                const response = await fetch('/ucitaj-narudzbenice', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            const data = await response.json();
-            document.getElementById('rezultat').textContent = JSON.stringify(data, null, 2);
+                const rezultat = await response.json();
+
+                if (rezultat.success) {
+                    alert(rezultat.message);
+                } else {
+                    let poruka = (rezultat.message || "Greška pri uvozu.") + "\n\nDETALJI:\n";
+                    if (rezultat.detaljiGresaka && rezultat.detaljiGresaka.length > 0) {
+                        rezultat.detaljiGresaka.forEach((g, idx) => {
+                            poruka += `${idx + 1}. [${g.fajl}] Artikal: "${g.artikal}" -> ${g.poruka}\n`;
+                        });
+                    }
+                    alert(poruka);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Greška pri komunikaciji sa serverom.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalniTekst;
+            }
         });
     </script>
 </body>

@@ -34,8 +34,9 @@
         </form>
     </div>
 
+    <!-- STANDARDNI UVOZ EXCEL FAJLOVA -->
     <div class="forma excel-sekcija">
-        <h3>Uvoz podataka iz Excel-a</h3>
+        <h3>Uvoz standardnih Excel specifikacija (/skeniraj)</h3>
     
         <div style="margin-bottom: 20px; padding: 10px; border-bottom: 1px dashed #999;">
             <label><strong>1. Odaberi specifične fajlove:</strong></label><br>
@@ -52,7 +53,27 @@
         </div>
     </div>
 
-    <div class="filter-kolona-kontejner" style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+    <!-- ================================================================= -->
+    <!-- POSEBNA SEKCIJA ZA UVOZ NARUDŽBENICA (/ucitaj-narudzbenice) -->
+    <!-- ================================================================= -->
+    <div class="forma excel-sekcija" style="border: 2px solid #e67e22; background-color: #fffdf9; margin-top: 25px;">
+        <h3 style="color: #d35400; margin-top: 0;">📑 Uvoz Narudžbenica (Poseban format)</h3>
+        <p style="margin-bottom: 15px;">
+            <small style="color: #666;">
+                ⚠️ <strong>Napomena:</strong> Ova sekcija obrađuje specifične fajlove narudžbenica i šalje ih na posebnu obradu. Ne koristiti za standardne fajlove.
+            </small>
+        </p>
+
+        <div style="padding: 10px; background: #fff; border: 1px dashed #e67e22; border-radius: 4px;">
+            <label><strong>Odaberi Excel fajl narudžbenice:</strong></label><br>
+            <input type="file" id="narudzbenicaFileInput" accept=".xlsx, .xls" style="margin-top: 10px;">
+            <button type="button" onclick="posaljiNarudzbenicu()">
+                 Učitaj narudžbenicu
+            </button>
+        </div>
+    </div>
+
+    <div class="filter-kolona-kontejner" style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; margin-top: 25px;">
         <h5 style="margin-top: 0;">Podesi prikaz kolona:</h5>
         <div style="display: flex; flex-wrap: wrap; gap: 15px;">
             <label><input type="checkbox" class="col-toggle" value="col-datum" checked> Datum nabavke</label>
@@ -157,6 +178,47 @@
         <% }) %>
         </tbody>
     </table>
+
+    <!-- SKRIPTA ZA SLANJE NARUDŽBENICA -->
+    <script>
+    async function posaljiNarudzbenicu() {
+        const input = document.getElementById('narudzbenicaFileInput');
+        if (!input.files || input.files.length === 0) {
+            alert('Molimo odaberite Excel fajl narudžbenice.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('excelFajl', input.files[0]);
+
+        try {
+            const response = await fetch('/ucitaj-narudzbenice', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            let poruka = result.message || 'Obrada završena.';
+
+            if (result.detaljiGresaka && result.detaljiGresaka.length > 0) {
+                poruka += '\n\nDETALJI:\n';
+                result.detaljiGresaka.forEach((g, idx) => {
+                    poruka += `${idx + 1}. [${g.fajl}] Artikal: "${g.artikal}" -> ${g.poruka}\n`;
+                });
+            }
+
+            alert(poruka);
+
+            // Osvježavanje stranice
+            window.location.reload();
+
+        } catch (err) {
+            console.error('Greška pri slanju narudžbenice:', err);
+            alert('Došlo je do mrežne greške prilikom slanja fajla.');
+        }
+    }
+</script>
 
     <script src="/js/script.js"></script> 
 </body>

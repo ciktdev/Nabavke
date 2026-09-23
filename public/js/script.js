@@ -306,7 +306,14 @@ async function prikaziStavkeKonta(kontoId) {
                 if ((s.status_placanja || '').toLowerCase() === 'placeno' && (!s.datum_placanja || s.datum_placanja === '-')) {
                     stilDatuma += ' background-color: #fff3cd;'; // Nežna pastelno žuta pozadina
                 }
+                
+                const statusKlasa = (s.status_placanja || 'za placanje')
+                                                                        .toLowerCase()
+                                                                        .replace('ć', 'c')
+                                                                        .replace('č', 'c')
+                                                                        .replace(' ', '-');
 
+                                                                        
                 html += `
                     <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
                         <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
@@ -324,8 +331,8 @@ async function prikaziStavkeKonta(kontoId) {
                         <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
                         
                         <td class="col-status" style="padding: 8px; cursor: pointer;" 
-                            onclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}')">
-                            <span class="badge-${(s.status_placanja || 'za placanje').toLowerCase().replace(' ', '-')}">${s.status_placanja || '-'}</span>
+                            ondblclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}', ${s.ugovor_id})">
+                            <span class="badge-${statusKlasa}">${s.status_placanja || '-'}</span>
                         </td>
 
                         <td class="col-datum-pl" style="${stilDatuma}" 
