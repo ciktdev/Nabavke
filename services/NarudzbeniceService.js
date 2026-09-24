@@ -66,12 +66,12 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
                 kolone.brojOznaka = red.findIndex(c => c.includes('broj') || c.includes('oznaka') || c.includes('cpv'));
                 kolone.datumZakljucenja = red.findIndex(c => c.includes('datum'));
                 kolone.nazivUgovorneStrane = red.findIndex(c => c.includes('naziv'));
-                kolone.ukupniIznos = red.findIndex(c => c.includes('ukupni iznos bez') || (c.includes('iznos') && c.includes('bez')));
+                kolone.ukupniIznos = red.findIndex(c => c.includes('ukupni iznos') && !c.includes('pdv'));
                 kolone.ukupniIznosSaPdv = red.findIndex(c => c.includes('sa pdv') || (c.includes('iznos') && c.includes('sa')));
                 kolone.realizovano = red.findIndex(c => c.includes('realizovano') || c.includes('realizacija'));
                 kolone.valuta = red.findIndex(c => c.includes('valuta'));
                 kolone.status = red.findIndex(c => c.includes('status'));
-
+                kolone.datumPlacanja = red.findIndex(c => c.includes('zavr'));
                 startniRed = i + 1;
                 break;
             }
@@ -114,7 +114,8 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
             }
 
             const datumZakljucenja = red[kolone.datumZakljucenja] || null;
-
+            const datumPlacanja = red[kolone.datumPlacanja] || null;
+            
             let godina = null;
             if (datumZakljucenja) {
                 if (typeof datumZakljucenja === 'number') {
@@ -124,6 +125,7 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
                     if (match) godina = parseInt(match[0], 10);
                 }
             }
+
 
             // Mapiranje statusa (zakljucen -> za placanje, izvrsen -> placeno)
             const siroviStatus = dajTekst(red, kolone.status);
@@ -148,7 +150,7 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
                 broj_ugovora: null,
                 datum: datumZakljucenja,
                 datum_zakljucenja: datumZakljucenja,
-                godina,
+                godina: godina || null,
                 dobavljac: dajTekst(red, kolone.nazivUgovorneStrane),
                 vrednostBez: parsujBroj(red, kolone.ukupniIznos),
                 vrednostSa: parsujBroj(red, kolone.ukupniIznosSaPdv),
@@ -162,7 +164,7 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
                 kolicina: 1,
                 cenaBez: parsujBroj(red, kolone.ukupniIznos),
                 cenaSa: parsujBroj(red, kolone.ukupniIznosSaPdv),
-                datumPla: null,
+                datumPla: datumPlacanja,
                 institut: null,
                 broj_nabavke: null,
                 partija: null

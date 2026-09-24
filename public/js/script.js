@@ -288,6 +288,10 @@ async function prikaziStavkeKonta(kontoId) {
                         <th class="col-status" style="padding: 8px; text-align: left;">Status plaćanja</th>
                         <th class="col-datum-pl" style="padding: 8px; text-align: left;">Datum plaćanja</th>
                         <th class="col-institut" style="padding: 8px; text-align: left;">Institut</th>
+                        <th class="col-izuzece" style="padding: 8px; text-align: left;">Izuzeće</th>
+                        <th class="col-vrsta-pred" style="padding: 8px; text-align: left;">Vrsta predmeta</th>
+                        <th class="col-realizovano" style="padding: 8px; text-align: left;">Realizovano</th>
+                        <th class="col-valuta" style="padding: 8px; text-align: left;">Valuta</th>
                         <th class="col-fajl" style="padding: 8px; text-align: left;">Excel fajl</th>
                     </tr>
                 </thead>
@@ -341,6 +345,10 @@ async function prikaziStavkeKonta(kontoId) {
                         </td>
                         
                         <td class="col-institut" style="padding: 8px;">${s.institut || '-'}</td>
+                        <td class="col-izuzece" style="padding: 8px;">${s.izuzece || '-'}</td>
+                        <td class="col-vrsta-pred" style="padding: 8px; ">${s.vrsta_predmeta || '-'}</td>
+                        <td class="col-realizovano" style="padding: 8px;">${f(s.realizovano) || '-'}</td>
+                        <td class="col-valuta" style="padding: 8px;">${s.valuta || '-'}</td>
                         <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${s.ime_fajla || s.nazivFajla || '-'}</td>
                     </tr>`;
             });
