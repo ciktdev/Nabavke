@@ -153,6 +153,7 @@ async function prikaziKonta(fondId) {
                         <th>Plaćeno</th>
                         <th>Utrošeno (Ukupno)</th>
                         <th>Dostupno</th>
+                        <th>Obriši</th>
                     </tr>
                 </thead>
                 <tbody>`;
@@ -177,9 +178,15 @@ async function prikaziKonta(fondId) {
                         <td style="font-weight: bold; color: ${k.dostupna_sredstva < 0 ? 'red' : 'green'};">
                             ${formatirajBroj(k.dostupna_sredstva)}
                         </td>
+
+                        <td onclick="event.stopPropagation();">
+                            <button onclick="obrisiKonto(${k.id})" class="btn-obrisi" title="Obriši konto">
+                                🗑️
+                            </button>
+                        </td>
                     </tr>
                     <tr id="konto-expand-${k.id}" style="display: none;">
-                        <td colspan="6"><div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div></td>
+                        <td colspan="7"><div id="kontejner-stavki-${k.id}" style="padding: 10px; background: white;"></div></td>
                     </tr>`;
             });
         }
@@ -707,6 +714,32 @@ async function obrisiFond(fondId) {
         }
     })
     .catch(err => console.error("Greška:", err));
+}
+
+async function obrisiKonto(kontoId) {
+    if (!confirm("Da li ste sigurni da želite da obrišete ovaj konto? Ova operacija je trajna.")) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/obrisi-konto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: kontoId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert(data.message);
+        }
+    } catch (err) {
+        console.error("Greška pri brisanju konta:", err);
+        alert("Došlo je do greške pri komunikaciji sa serverom.");
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -499,27 +499,40 @@ app.get('/api/ugovor/:id/stavke', (req, res) => {
 app.post('/obrisi', (req, res) => {
     const { id } = req.body;
 
-    db.query("SELECT utrosena_sredstva FROM fond WHERE id = ?", [id], (err, results) => {
+    if (!id) {
+        return res.json({ success: false, message: "Nedostaje ID fonda." });
+    }
+
+    // Upit spaja 'konto' i 'fond' preko ime/fond_ime i godina/fond_godina
+    const sqlProvera = `
+        SELECT COUNT(*) AS broj_konta 
+        FROM konto k
+        JOIN fond f ON k.fond_ime = f.ime AND k.fond_godina = f.godina
+        WHERE f.id = ?
+    `;
+
+    db.query(sqlProvera, [id], (err, results) => {
         if (err) {
-            console.error("SQL Greška:", err);
+            console.error("SQL Greška pri proveri konta:", err);
             return res.json({ success: false, message: "Greška u komunikaciji sa bazom." });
         }
-        
-        if (results.length === 0) {
-            return res.json({ success: false, message: "Fond nije pronađen u bazi podataka." });
+
+        const brojKonta = results[0].broj_konta;
+
+        if (brojKonta > 0) {
+            return res.json({ 
+                success: false, 
+                message: `Ne možete obrisati fond jer sadrži ${brojKonta} povezanih konta!` 
+            });
         }
 
-        const utroseno = parseFloat(results[0].utrosena_sredstva || 0);
-
-        if (utroseno !== 0) {
-            return res.json({ success: false, message: "Ne možete obrisati fond koji ima utrošena sredstva!" });
-        }
-
-        db.query("DELETE FROM fond WHERE id = ?", [id], (err) => {
-            if (err) {
-                console.error("SQL Greška pri brisanju:", err);
-                return res.json({ success: false, message: "Greška pri brisanju." });
+        // Ako nema povezanih kontova, briše se fond
+        db.query("DELETE FROM fond WHERE id = ?", [id], (errDelete) => {
+            if (errDelete) {
+                console.error("SQL Greška pri brisanju fonda:", errDelete);
+                return res.json({ success: false, message: "Greška pri brisanju fonda." });
             }
+            
             res.json({ success: true, message: "Fond je uspešno obrisan." });
         });
     });
@@ -979,6 +992,40 @@ app.post('/ucitaj-narudzbenice', upload.single('excelFajl'), async (req, res) =>
         console.error("Greška u /ucitaj-narudzbenice:", err);
         res.json({ success: false, message: 'Došlo je do greške na serveru.' });
     }
+});
+
+app.post('/obrisi-konto', (req, res) => {
+    const { id } = req.body;
+
+    if (!id) {
+        return res.json({ success: false, message: "Nedostaje ID konta." });
+    }
+
+    // Provera da li konto ima povezane stavke
+    db.query("SELECT COUNT(*) as broj_stavki FROM stavke WHERE konto_id = ?", [id], (err, results) => {
+        if (err) {
+            console.error("Greška pri proveri stavki konta:", err);
+            return res.json({ success: false, message: "Greška u bazi podataka." });
+        }
+
+        const brojStavki = results[0].broj_stavki;
+
+        if (brojStavki > 0) {
+            return res.json({ 
+                success: false, 
+                message: `Ne možete obrisati ovaj konto jer ima ${brojStavki} povezanih stavki!` 
+            });
+        }
+
+        // Ako nema povezanih stavki, vrši se brisanje
+        db.query("DELETE FROM konto WHERE id = ?", [id], (errDelete) => {
+            if (errDelete) {
+                console.error("Greška pri brisanju konta:", errDelete);
+                return res.json({ success: false, message: "Greška pri brisanju konta." });
+            }
+            res.json({ success: true, message: "Konto je uspešno obrisan." });
+        });
+    });
 });
 
 const PORT = 3000;
