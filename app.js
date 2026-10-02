@@ -315,7 +315,7 @@ app.post('/azuriraj-sredstva', (req, res) => {
     });
 });
 
-app.post('/azuriraj-status-stavke', (req, res) => {
+app.post('/azuriraj-status-stavke', async (req, res) => {
     const { id, status_placanja, datum_placanja } = req.body;
 
     if (!id) {
@@ -326,45 +326,106 @@ app.post('/azuriraj-status-stavke', (req, res) => {
         return res.status(400).json({ success: false, message: "Nisu poslati podaci za ažuriranje." });
     }
 
-    let sql = "UPDATE stavke SET ";
-    let params = [];
-
-    if (status_placanja !== undefined) {
-        sql += "status_placanja = ? ";
-        params.push(status_placanja);
-        if (status_placanja !== 'placeno') {
-            sql += ", datum_placanja = NULL ";
-        }
-    } else if (datum_placanja !== undefined) {
-        sql += "datum_placanja = ? ";
-        params.push(datum_placanja === "" ? null : datum_placanja);
-    }
-
-    sql += "WHERE id = ?";
-    params.push(id);
-
-    db.query(sql, params, (err) => {
-        if (err) {
-            console.error("Greška pri ažuriranju:", err);
-            return res.status(500).json({ success: false, message: "Greška na serveru." });
-        }
-
-        db.query("SELECT konto_id, ugovor_id FROM stavke WHERE id = ?", [id], (err, rows) => {
-            if (err || rows.length === 0) return res.json({ success: true });
-
-            const { konto_id, ugovor_id } = rows[0];
-            let noveSume = { success: true, kontoId: konto_id, ugovorId: ugovor_id };
-
-            db.query("SELECT utrosena_sredstva FROM konto WHERE id = ?", [konto_id], (err, kRows) => {
-                if (kRows && kRows.length > 0) noveSume.novaPotrosnjaKonta = kRows[0].utrosena_sredstva;
-
-                db.query("SELECT utroseno_sa_pdv FROM ugovori WHERE id = ?", [ugovor_id], (err, uRows) => {
-                    if (uRows && uRows.length > 0) noveSume.novaPotrosnjaUgovora = uRows[uRows.length - 1].utroseno_sa_pdv;
-                    res.json(noveSume);
-                });
-            });
-        });
+    const queryAsync = (sql, params) => new Promise((resolve, reject) => {
+        db.query(sql, params, (err, result) => err ? reject(err) : resolve(result));
     });
+
+    try {
+        // 1. Ažuriranje statusa ili datuma plaćanja
+        let sql = "UPDATE stavke SET ";
+        let params = [];
+
+        if (status_placanja !== undefined) {
+            sql += "status_placanja = ? ";
+            params.push(status_placanja);
+            if (status_placanja !== 'placeno' && status_placanja !== 'plaćeno') {
+                sql += ", datum_placanja = NULL ";
+            }
+        } else if (datum_placanja !== undefined) {
+            sql += "datum_placanja = ? ";
+            params.push(datum_placanja === "" ? null : datum_placanja);
+        }
+
+        sql += "WHERE id = ?";
+        params.push(id);
+
+        await queryAsync(sql, params);
+
+        // 2. Dohvatanje ažurirane stavke i trenutnog konta/fonda
+        const rows = await queryAsync(`
+            SELECT s.*, k.ime_konta, k.fond_ime, k.fond_godina AS trenutna_godina 
+            FROM stavke s 
+            JOIN konto k ON s.konto_id = k.id 
+            WHERE s.id = ?
+        `, [id]);
+
+        if (rows.length === 0) {
+            return res.json({ success: true });
+        }
+
+        const stavka = rows[0];
+
+        // 3. Provera da li stvarni datum plaćanja mijenja finansijsku godinu
+        const novaGodina = odrediGodinuZaStavku(stavka);
+
+        if (novaGodina && novaGodina !== stavka.trenutna_godina) {
+            // Provera ili kreiranje fonda za novu/vračenu godinu
+            const fondovi = await queryAsync(
+                "SELECT id FROM fond WHERE ime = ? AND godina = ?",
+                [stavka.fond_ime, novaGodina]
+            );
+
+            if (fondovi.length === 0) {
+                await queryAsync(
+                    "INSERT INTO fond (ime, godina, sredstva, utrosena_sredstva) VALUES (?, ?, 0, 0)",
+                    [stavka.fond_ime, novaGodina]
+                );
+            }
+
+            // Provera ili kreiranje konta za novu/vračenu godinu
+            const kontovi = await queryAsync(
+                "SELECT id FROM konto WHERE ime_konta = ? AND fond_ime = ? AND fond_godina = ?",
+                [stavka.ime_konta, stavka.fond_ime, novaGodina]
+            );
+
+            let noviKontoId;
+            if (kontovi.length > 0) {
+                noviKontoId = kontovi[0].id;
+            } else {
+                const resultKonto = await queryAsync(
+                    "INSERT INTO konto (ime_konta, fond_ime, fond_godina, sredstva, utrosena_sredstva) VALUES (?, ?, ?, 0, 0)",
+                    [stavka.ime_konta, stavka.fond_ime, novaGodina]
+                );
+                noviKontoId = resultKonto.insertId;
+            }
+
+            // Premeštanje stavke na konto odgovarajuće godine
+            await queryAsync("UPDATE stavke SET konto_id = ? WHERE id = ?", [noviKontoId, id]);
+            stavka.konto_id = noviKontoId;
+        }
+
+        // 4. Vraćanje novih suma za frontend
+        let noveSume = { success: true, kontoId: stavka.konto_id, ugovorId: stavka.ugovor_id };
+
+        const kRows = await queryAsync("SELECT utrosena_sredstva FROM konto WHERE id = ?", [stavka.konto_id]);
+        if (kRows && kRows.length > 0) {
+            noveSume.novaPotrosnjaKonta = kRows[0].utrosena_sredstva;
+        }
+
+        if (stavka.ugovor_id) {
+            const uRows = await queryAsync("SELECT utroseno_sa_pdv, utroseno_bez_pdv FROM ugovori WHERE id = ?", [stavka.ugovor_id]);
+            if (uRows && uRows.length > 0) {
+                noveSume.novaPotrosnjaUgovora = uRows[0].utroseno_sa_pdv;
+                noveSume.novaPotrosnjaBezPdva = uRows[0].utroseno_bez_pdv;
+            }
+        }
+
+        return res.json(noveSume);
+
+    } catch (err) {
+        console.error("Greška pri ažuriranju statusa ili datuma stavke:", err);
+        return res.status(500).json({ success: false, message: "Greška na serveru." });
+    }
 });
 
 app.get('/api/fond/:id/kontovi', (req, res) => {
@@ -1026,6 +1087,125 @@ app.post('/obrisi-konto', (req, res) => {
             res.json({ success: true, message: "Konto je uspešno obrisan." });
         });
     });
+});
+
+
+
+
+// Pomoćna funkcija koja primenjuje novo pravilo
+function odrediGodinuZaStavku(stavka) {
+    const status = (stavka.status_placanja || '').toString().toLowerCase().trim();
+    
+    // 1. Ako je plaćeno ili postoji datum plaćanja -> stvarna godina bez +45 dana
+    if (status === 'plaćeno' || status === 'placeno' || stavka.datum_placanja) {
+        if (stavka.datum_placanja) {
+            const dPlacanja = new Date(stavka.datum_placanja);
+            if (!isNaN(dPlacanja.getTime())) {
+                return dPlacanja.getFullYear();
+            }
+        }
+        // Rezervno: ako je status plaćeno a nema datum_placanja, uzimamo godinu iz datuma nabavke
+        if (stavka.datum_nabavke) {
+            const dNabavke = new Date(stavka.datum_nabavke);
+            if (!isNaN(dNabavke.getTime())) return dNabavke.getFullYear();
+        }
+    }
+
+    // 2. Ako je "za plaćanje" -> dodaje se 45 dana na datum nabavke
+    if (stavka.datum_nabavke) {
+        const dNabavke = new Date(stavka.datum_nabavke);
+        if (!isNaN(dNabavke.getTime())) {
+            dNabavke.setDate(dNabavke.getDate() + 45);
+            return dNabavke.getFullYear();
+        }
+    }
+
+    return null;
+}
+
+app.get('/migracija-godina', async (req, res) => {
+    try {
+        // Selektujemo i status_placanja i datum_placanja iz baze
+        const sqlStavke = `
+            SELECT 
+                s.id AS stavka_id, 
+                s.datum_nabavke, 
+                s.status_placanja,
+                s.datum_placanja,
+                s.konto_id AS trenutni_konto_id,
+                k.ime_konta, 
+                k.fond_ime, 
+                k.fond_godina AS trenutna_godina
+            FROM stavke s
+            JOIN konto k ON s.konto_id = k.id
+        `;
+
+        const queryAsync = (sql, params) => new Promise((resolve, reject) => {
+            db.query(sql, params, (err, res) => err ? reject(err) : resolve(res));
+        });
+
+        const stavke = await queryAsync(sqlStavke, []);
+        let premestenoBroj = 0;
+
+        for (const stavka of stavke) {
+            const novaGodina = odrediGodinuZaStavku(stavka);
+
+            // Ako godina ostaje ista ili je nepoznata, preskačemo
+            if (!novaGodina || novaGodina === stavka.trenutna_godina) {
+                continue;
+            }
+
+            // 1. PROVERA / KREIRANJE FONDA
+            let fondovi = await queryAsync(
+                "SELECT id FROM fond WHERE ime = ? AND godina = ?", 
+                [stavka.fond_ime, novaGodina]
+            );
+
+            if (fondovi.length === 0) {
+                await queryAsync(
+                    "INSERT INTO fond (ime, godina, sredstva, utrosena_sredstva) VALUES (?, ?, 0, 0)", 
+                    [stavka.fond_ime, novaGodina]
+                );
+                console.log(`Kreiran nov fond: ${stavka.fond_ime} za godinu ${novaGodina}`);
+            }
+
+            // 2. PROVERA / KREIRANJE KONTA
+            let kontovi = await queryAsync(
+                "SELECT id FROM konto WHERE ime_konta = ? AND fond_ime = ? AND fond_godina = ?", 
+                [stavka.ime_konta, stavka.fond_ime, novaGodina]
+            );
+
+            let noviKontoId;
+
+            if (kontovi.length > 0) {
+                noviKontoId = kontovi[0].id;
+            } else {
+                const resultKonto = await queryAsync(
+                    "INSERT INTO konto (ime_konta, fond_ime, fond_godina, sredstva, utrosena_sredstva) VALUES (?, ?, ?, 0, 0)", 
+                    [stavka.ime_konta, stavka.fond_ime, novaGodina]
+                );
+                noviKontoId = resultKonto.insertId;
+                console.log(`Kreiran nov konto: ${stavka.ime_konta} za fond ${stavka.fond_ime} (${novaGodina})`);
+            }
+
+            // 3. PREMEŠTANJE STAVKE NA NOVI KONTO (Okida se trg_stavke_update triger u bazi)
+            await queryAsync(
+                "UPDATE stavke SET konto_id = ? WHERE id = ?", 
+                [noviKontoId, stavka.stavka_id]
+            );
+
+            premestenoBroj++;
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Migracija uspešno završena. Premešteno je ${premestenoBroj} stavki po novim pravilima.` 
+        });
+
+    } catch (err) {
+        console.error("Greška tokom migracije:", err);
+        res.status(500).json({ success: false, message: "Greška tokom migracije: " + err.message });
+    }
 });
 
 const PORT = 3000;

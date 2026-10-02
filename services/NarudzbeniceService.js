@@ -119,10 +119,32 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
             let godina = null;
             if (datumZakljucenja) {
                 if (typeof datumZakljucenja === 'number') {
-                    godina = xlsx.SSF.parse_date_code(datumZakljucenja).y;
+                    // Dodajemo 45 dana direktno na Excel serijski datum
+                    godina = xlsx.SSF.parse_date_code(datumZakljucenja + 45).y;
                 } else {
-                    const match = datumZakljucenja.toString().match(/\b(19|20)\d{2}\b/);
-                    if (match) godina = parseInt(match[0], 10);
+                    let d;
+                    const strDatum = datumZakljucenja.toString().trim();
+
+                    // Provera da li je datum u formatu DD.MM.YYYY
+                    if (strDatum.includes('.')) {
+                        const delovi = strDatum.split('.').filter(Boolean);
+                        if (delovi.length >= 3) {
+                            // Meseci u JS Date počinju od 0 (0 = Januar, 11 = Decembar)
+                            d = new Date(parseInt(delovi[2], 10), parseInt(delovi[1], 10) - 1, parseInt(delovi[0], 10));
+                        }
+                    } else {
+                        d = new Date(strDatum);
+                    }
+
+                    if (d && !isNaN(d.getTime())) {
+                        // Uvećavamo datum za 45 dana
+                        d.setDate(d.getDate() + 45);
+                        godina = d.getFullYear();
+                    } else {
+                        // Rezervna opcija sa regex-om ako parsiranje ne uspe
+                        const match = strDatum.match(/\b(19|20)\d{2}\b/);
+                        if (match) godina = parseInt(match[0], 10);
+                    }
                 }
             }
 

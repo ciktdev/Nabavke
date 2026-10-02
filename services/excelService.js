@@ -115,12 +115,34 @@ const izvuciPodatkeIzExcela = (files) => {
                     // Logika za godinu
                     if (siroviDatum) {
                         if (typeof siroviDatum === 'number') {
-                            godina = xlsx.SSF.parse_date_code(siroviDatum).y;
+                        // U Excelu je 1 dan = 1 ceo broj, pa je dovoljno samo dodati 45
+                        godina = xlsx.SSF.parse_date_code(siroviDatum + 45).y;
+                    } else {
+                        let d;
+                        const strDatum = siroviDatum.toString().trim();
+
+                        // Ako je datum u formatu DD.MM.YYYY
+                        if (strDatum.includes('.')) {
+                            const delovi = strDatum.split('.').filter(Boolean);
+                            if (delovi.length >= 3) {
+                                // Meseci u JS Date počinju od 0 (0 = Januar, 11 = Decembar)
+                                d = new Date(parseInt(delovi[2]), parseInt(delovi[1]) - 1, parseInt(delovi[0]));
+                            }
                         } else {
-                            const match = siroviDatum.toString().match(/\d{4}/);
+                            d = new Date(strDatum);
+                        }
+
+                        if (d && !isNaN(d.getTime())) {
+                            // Uvećavamo datum za 45 dana
+                            d.setDate(d.getDate() + 45);
+                            godina = d.getFullYear();
+                        } else {
+                            // Rezervna opcija ako parsiranje ne uspe
+                            const match = strDatum.match(/\d{4}/);
                             if (match) godina = parseInt(match[0]);
                         }
                     }
+                }
 
                     // --- VALIDACIJA I LOGOVANJE ---
                     // Uslov: Mora imati Fond, Godinu i Naziv artikla, i ne sme biti naslovni red
