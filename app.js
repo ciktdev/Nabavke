@@ -1094,24 +1094,15 @@ app.post('/obrisi-konto', (req, res) => {
 
 // Pomoćna funkcija koja primenjuje novo pravilo
 function odrediGodinuZaStavku(stavka) {
-    const status = (stavka.status_placanja || '').toString().toLowerCase().trim();
-    
-    // 1. Ako je plaćeno ili postoji datum plaćanja -> stvarna godina bez +45 dana
-    if (status === 'plaćeno' || status === 'placeno' || stavka.datum_placanja) {
-        if (stavka.datum_placanja) {
-            const dPlacanja = new Date(stavka.datum_placanja);
-            if (!isNaN(dPlacanja.getTime())) {
-                return dPlacanja.getFullYear();
-            }
-        }
-        // Rezervno: ako je status plaćeno a nema datum_placanja, uzimamo godinu iz datuma nabavke
-        if (stavka.datum_nabavke) {
-            const dNabavke = new Date(stavka.datum_nabavke);
-            if (!isNaN(dNabavke.getTime())) return dNabavke.getFullYear();
+    // 1. Ako postoji validan datum plaćanja -> stvarna godina bez +45 dana
+    if (stavka.datum_placanja) {
+        const dPlacanja = new Date(stavka.datum_placanja);
+        if (!isNaN(dPlacanja.getTime())) {
+            return dPlacanja.getFullYear();
         }
     }
 
-    // 2. Ako je "za plaćanje" -> dodaje se 45 dana na datum nabavke
+    // 2. Ako nema datuma plaćanja (bez obzira da li je status "plaćeno" ili "za plaćanje") -> dodaje se 45 dana na datum nabavke
     if (stavka.datum_nabavke) {
         const dNabavke = new Date(stavka.datum_nabavke);
         if (!isNaN(dNabavke.getTime())) {

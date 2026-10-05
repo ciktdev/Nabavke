@@ -1,22 +1,112 @@
 const xlsx = require('xlsx');
+
 /**
- * Funkcija prolazi kroz dostavljene fajlove, traži sheet "REALIZACIJA"
- * i izvlači sve stavke (artikle) zajedno sa informacijama o fondu.
+ * Konvertuje bilo koji unos iz Excel-a (broj, DD.MM.YYYY., YYYY-MM-DD...) u važeći JS Date objekat.
+ * Vraća null ako unos nije datum (npr. tekst, iznos ili prazna ćelija).
  */
+function parsujDatum(val) {
+    if (val === null || val === undefined) return null;
+
+    if (val instanceof Date) {
+        return isNaN(val.getTime()) ? null : val;
+    }
+
+    // Excel serijski broj za datume (opseg od ~2000. do 2090. godine)
+    const numVal = Number(val);
+    if (!isNaN(numVal) && typeof val !== 'boolean') {
+        if (numVal >= 35000 && numVal <= 70000) {
+            try {
+                const parsed = xlsx.SSF.parse_date_code(numVal);
+                if (parsed && parsed.y && parsed.m && parsed.d) {
+                    return new Date(parsed.y, parsed.m - 1, parsed.d);
+                }
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    if (typeof val !== 'string') return null;
+
+    const strVal = val.trim();
+    if (!strVal || strVal === '/' || strVal === '-' || strVal.toLowerCase() === 'null') return null;
+
+    // 1. Format: DD.MM.YYYY ili D.M.YYYY (sa ili bez tačke na kraju)
+    const dotMatch = strVal.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/);
+    if (dotMatch) {
+        const dan = parseInt(dotMatch[1], 10);
+        const mesec = parseInt(dotMatch[2], 10) - 1;
+        const godina = parseInt(dotMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    // 2. Format: DD/MM/YYYY ili DD-MM-YYYY
+    const slashMatch = strVal.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (slashMatch) {
+        const dan = parseInt(slashMatch[1], 10);
+        const mesec = parseInt(slashMatch[2], 10) - 1;
+        const godina = parseInt(slashMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    // 3. Format: YYYY-MM-DD ili YYYY/MM/DD
+    const isoMatch = strVal.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+    if (isoMatch) {
+        const godina = parseInt(isoMatch[1], 10);
+        const mesec = parseInt(isoMatch[2], 10) - 1;
+        const dan = parseInt(isoMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    const dStandard = new Date(strVal);
+    if (!isNaN(dStandard.getTime()) && dStandard.getFullYear() > 1990 && dStandard.getFullYear() < 2100) {
+        return dStandard;
+    }
+
+    return null;
+}
+
+/**
+ * Određuje finansijsku godinu za stavku:
+ * - Ako postoji datum plaćanja -> stvarna godina bez +45 dana
+ * - Ako ne postoji -> dodaje 45 dana na datum nabavke
+ */
+function izracunajGodinuZaStavku(siroviDatumPla, siroviDatum) {
+    const dPla = parsujDatum(siroviDatumPla);
+    if (dPla) {
+        return dPla.getFullYear();
+    }
+
+    const dNab = parsujDatum(siroviDatum);
+    if (dNab) {
+        const dKopija = new Date(dNab.getTime());
+        dKopija.setDate(dKopija.getDate() + 45);
+        return dKopija.getFullYear();
+    }
+
+    if (siroviDatum) {
+        const match = siroviDatum.toString().match(/\b(19|20)\d{2}\b/);
+        if (match) return parseInt(match[0], 10);
+    }
+
+    return null;
+}
+
 const izvuciPodatkeIzExcela = (files) => {
     let sveStavke = [];
 
     files.forEach(fajl => {
         try {
-            //const nazivFajla = putanja.basename(fajl);
             const workbook = xlsx.read(fajl.buffer, { type: 'buffer' });
             
-            // 💡 Dinamički pronalazimo tab "realizacija" bez obzira na mala/velika slova
             const stvarniNazivSheeta = workbook.SheetNames.find(
                 name => name.toLowerCase().trim() === 'realizacija'
             );
             
-            // Uzimamo pronađeni sheet (ako postoji)
             const sheet = stvarniNazivSheeta ? workbook.Sheets[stvarniNazivSheeta] : null;
             
             console.log(`\n[SKENER] Obrađujem fajl: ${fajl.originalname}`);
@@ -25,37 +115,30 @@ const izvuciPodatkeIzExcela = (files) => {
                 return;
             }
 
-            // --- DIREKTNO ČITANJE FIKSNIH ĆELIJA (A1, A2, A3) ---
             const dobavljacSirovo = sheet['A1'] ? sheet['A1'].v.toString().toUpperCase().trim() : '';
             const nabavkaPartijaSirovo = sheet['A2'] ? sheet['A2'].v.toString().toUpperCase().trim() : '';
             const ugovorDatumSirovo = sheet['A3'] ? sheet['A3'].v.toString().toUpperCase().trim() : '';
             const vrednost_ugovora_bez_pdv = sheet['A4'] ? parseFloat(sheet['A4'].v.toString()) : 0;
             const vrednost_ugovora_sa_pdv = sheet['A5'] ? parseFloat(sheet['A5'].v.toString()) : 0;
-            console.log(vrednost_ugovora_sa_pdv)
             const organizacionaJedinica = sheet['A6'] ? sheet['A6'].v.toString().toUpperCase().trim() : null;
             let brojNabavke = nabavkaPartijaSirovo;
             let partija = null;
 
             if (nabavkaPartijaSirovo.toLowerCase().includes('partija')) {
-                // Delimo tekst na delove oko reči "partija" (bilo velika ili mala slova)
                 const deloviNabavke = nabavkaPartijaSirovo.split(new RegExp('partija', 'i'));
-                brojNabavke = deloviNabavke[0].replace(/[,;:]\s*$/, '').trim(); // Čisti zareze na kraju prvog dela
-                partija = "PARTIJA " + deloviNabavke[1].replace(/[:\s=-]+/g, '').trim(); // Čisti dvotačke, razmake ili minuse i ostavlja samo broj/oznaku partije
+                brojNabavke = deloviNabavke[0].replace(/[,;:]\s*$/, '').trim();
+                partija = "PARTIJA " + deloviNabavke[1].replace(/[:\s=-]+/g, '').trim();
             }
 
-            // 3. Broj ugovora i datum zaključenja (Izvlačenje iz A3)
-            // Tekst je npr: "Ugovor 44-89/26 OD 15.02.2026" ili "Ugovor br. 12 OD 2026-04-10"
             let brojUgovora = ugovorDatumSirovo;
             let datumUgovoraSirovo = null;
 
             if (ugovorDatumSirovo.toLowerCase().includes(' od ')) {
-                // Delimo string na mesto gde piše " OD " (sa razmacima sa obe strane)
                 const deloviUgovora = ugovorDatumSirovo.split(new RegExp('\\s+od\\s+', 'i'));
                 brojUgovora = deloviUgovora[0].trim();
-                datumUgovoraSirovo = deloviUgovora[1].trim(); // Ovo šaljemo u kolekciju, a ruta u app.js će ga formatirati
+                datumUgovoraSirovo = deloviUgovora[1].trim();
             }
 
-            // defval: "" sprečava pucanje ako su neke ćelije potpuno prazne
             const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
             
             let kolone = { 
@@ -66,16 +149,10 @@ const izvuciPodatkeIzExcela = (files) => {
             };
 
             let startniRed = -1;
-            // 1. Pronalaženje zaglavlja (tražimo red gde su nazivi kolona)
             for (let i = 0; i < podaci.length; i++) {
                 const red = podaci[i].map(c => 
-                                            c ? c.toString()
-                                                .replace(/[\r\n]+/g, ' ') // Zamenjuje \r i \n (jedan ili više) običnim razmakom
-                                                .toLowerCase()
-                                                .replace(/\s+/g, ' ')     // Smanjuje višestruke razmake na samo jedan
-                                                .trim() 
-                                            : ""
-                                        );
+                    c ? c.toString().replace(/[\r\n]+/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim() : ""
+                );
 
                 if (red.includes('izvor finansiranja') && red.includes('datum')) {
                     kolone.datum = red.indexOf('datum');
@@ -86,84 +163,38 @@ const izvuciPodatkeIzExcela = (files) => {
                     kolone.cenaBez = red.findIndex(c => c.includes('cena bez'));
                     kolone.cenaSa = red.findIndex(c => c.includes('cena sa'));
                     kolone.vrednostBez = red.findIndex(c => c.includes('vred. bez') || c.includes('vrednost bez'));
-                    kolone.vrednostSa = red.findIndex(c => (c.includes(('vrednost sa') || c.includes('vred.')) && !c.includes('nerealizovan')));
-                    kolone.status = red.findIndex(c => c.includes('status') || c.includes('status'));
-                    kolone.datumPla = red.findIndex(c => (c.includes('datum placa') || c.includes('datum plaća')));
-                    kolone.konto = red.findIndex(c => (c.includes('konto')));
-                    kolone.institut = red.findIndex(c => (c.includes('institut')));
+                    kolone.vrednostSa = red.findIndex(c => (c.includes('vrednost sa') || c.includes('vred.')) && !c.includes('nerealizovan'));
+                    kolone.status = red.findIndex(c => c.includes('status'));
+                    kolone.datumPla = red.findIndex(c => c.includes('datum placa') || c.includes('datum plaća'));
+                    kolone.konto = red.findIndex(c => c.includes('konto'));
+                    kolone.institut = red.findIndex(c => c.includes('institut'));
                     startniRed = i + 1;
-                    console.log(`${kolone.datum}, ${kolone.izvor}, ${kolone.artikal}, ${kolone.racun}, ${kolone.kol}, ${kolone.cenaBez}, ${kolone.cenaSa}, ${kolone.vrednostBez}, ${kolone.vrednostSa} , ${kolone.status}, ${kolone.datumPla}, ${kolone.konto}, ${kolone.institut}`);
-                    console.log(red);
                     break;
                 }
             }
 
-            // 2. Provera da li smo našli bar osnovne kolone
             if (startniRed !== -1 && kolone.izvor !== -1) {
-                
-
                 for (let i = startniRed; i < podaci.length; i++) {
                     const red = podaci[i];
                     if (!red || red.length === 0) continue;
 
-                    // Izvlačenje osnovnih vrednosti za validaciju
                     let imeFonda = red[kolone.izvor] ? red[kolone.izvor].toString().trim() : null;
                     let nazivArtikla = red[kolone.artikal] ? red[kolone.artikal].toString().trim() : null;
                     let siroviDatum = red[kolone.datum];
-                    let godina = null;
+                    let siroviDatumPla = kolone.datumPla !== -1 ? red[kolone.datumPla] : null;
 
-                    // Logika za godinu
-                    if (siroviDatum) {
-                        if (typeof siroviDatum === 'number') {
-                        // U Excelu je 1 dan = 1 ceo broj, pa je dovoljno samo dodati 45
-                        godina = xlsx.SSF.parse_date_code(siroviDatum + 45).y;
-                    } else {
-                        let d;
-                        const strDatum = siroviDatum.toString().trim();
+                    let godina = izracunajGodinuZaStavku(siroviDatumPla, siroviDatum);
 
-                        // Ako je datum u formatu DD.MM.YYYY
-                        if (strDatum.includes('.')) {
-                            const delovi = strDatum.split('.').filter(Boolean);
-                            if (delovi.length >= 3) {
-                                // Meseci u JS Date počinju od 0 (0 = Januar, 11 = Decembar)
-                                d = new Date(parseInt(delovi[2]), parseInt(delovi[1]) - 1, parseInt(delovi[0]));
-                            }
-                        } else {
-                            d = new Date(strDatum);
-                        }
-
-                        if (d && !isNaN(d.getTime())) {
-                            // Uvećavamo datum za 45 dana
-                            d.setDate(d.getDate() + 45);
-                            godina = d.getFullYear();
-                        } else {
-                            // Rezervna opcija ako parsiranje ne uspe
-                            const match = strDatum.match(/\d{4}/);
-                            if (match) godina = parseInt(match[0]);
-                        }
-                    }
-                }
-
-                    // --- VALIDACIJA I LOGOVANJE ---
-                    // Uslov: Mora imati Fond, Godinu i Naziv artikla, i ne sme biti naslovni red
-                    // 1. Čistimo vrednosti da proverimo da li je red stvarno prazan ili pun nula
                     const proveraArtikla = nazivArtikla ? nazivArtikla.toString().trim() : '';
                     const proveraRacuna = red[kolone.racun] ? red[kolone.racun].toString().trim() : '';
                     const proveraVrednosti = parseFloat(red[kolone.vrednostSa]) || 0;
 
-                    // 1. LABAV USLOV: Red NIJE prazan ako ima naziv artikla ili račun sa stvarnom vrednošću.
-                    // Ovdje namjerno NE provjeravamo 'imeFonda' i 'konto' kako ne bismo tiho ignorisali redove kojima oni fale!
                     if ((proveraArtikla !== '' && proveraArtikla !== '-') || (proveraRacuna !== '' && proveraRacuna !== '/' && proveraVrednosti > 0)) {
-
-                        // 💡 IZMENA: Provjeravamo da li je u pitanju naslovni red (samo ako imeFonda uopšte postoji)
                         const nijeNaslovniRed = imeFonda ? imeFonda.toLowerCase() !== 'izvor finansiranja' : true;
 
                         if (nijeNaslovniRed) {
-
-                            // Guramo stavku u niz za app.js, čak i ako joj fali fond, godina ili konto.
-                            // Tamo će ih dočekati strogi uslovi i izbaciti alert sa tačnom greškom!
                             sveStavke.push({
-                                ime_fonda: imeFonda || 'nepoznato',         // Ako fali u Excelu, šalje null
+                                ime_fonda: imeFonda || 'nepoznato',
                                 godina: godina || null,
                                 datum: siroviDatum,
                                 br_racuna: red[kolone.racun] || "/",
@@ -174,8 +205,8 @@ const izvuciPodatkeIzExcela = (files) => {
                                 vrednostBez: parseFloat(red[kolone.vrednostBez]) || 0,
                                 vrednostSa: parseFloat(red[kolone.vrednostSa]) || 0,
                                 status: red[kolone.status] || null,
-                                datumPla: red[kolone.datumPla] || null,
-                                konto: red[kolone.konto] || null,     // Ako fali u Excelu, šalje null
+                                datumPla: siroviDatumPla || null,
+                                konto: red[kolone.konto] || null,
                                 institut: red[kolone.institut] || organizacionaJedinica,
                                 nazivFajla: fajl.originalname,
                                 dobavljac: dobavljacSirovo,
@@ -186,23 +217,15 @@ const izvuciPodatkeIzExcela = (files) => {
                                 vrednost_ugovora_bez_pdv: vrednost_ugovora_bez_pdv,
                                 vrednost_ugovora_sa_pdv: vrednost_ugovora_sa_pdv
                             });
-
-                            console.log(` -> RED ${i + 1}: PROSLEDĐEN ZA PROVERU - ${nazivArtikla || 'Bez naziva'}`);
                         }
-                    } else {
-                        // Ovo su pravi prazni redovi sa dna Excela, njih samo tiho ignorišemo
-                        console.log(` -> RED ${i + 1}: Ignorisan prazan red sa dna.`);
                     }
                 }
-            } else {
-                console.log(`[SKENER] Fajl "${fajl.originalname}" nema potrebne kolone (Izvor finansiranja).`);
             }
         } catch (e) {
             console.error(`[GREŠKA] Problem sa fajlom ${fajl.originalname}:`, e.message);
         }
     });
 
-    console.log(`[SKENER] Ukupno spremno za bazu: ${sveStavke.length} stavki.`);
     return sveStavke;
 };
 

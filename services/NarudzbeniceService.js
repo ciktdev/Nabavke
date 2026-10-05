@@ -1,6 +1,5 @@
 const xlsx = require('xlsx');
 
-// Pomoćna funkcija za preslovljavanje ćirilice u latinicu
 function cir2lat(tekst) {
     if (typeof tekst !== 'string') return tekst;
     const mapa = {
@@ -13,6 +12,89 @@ function cir2lat(tekst) {
         'ћ':'ć', 'у':'u', 'ф':'f', 'х':'h', 'ц':'c', 'ч':'č', 'ш':'š'
     };
     return tekst.replace(/Љ|Њ|Џ|љ|њ|џ|[А-Ша-шЂђЋћ]/g, chr => mapa[chr] || chr);
+}
+
+function parsujDatum(val) {
+    if (val === null || val === undefined) return null;
+
+    if (val instanceof Date) {
+        return isNaN(val.getTime()) ? null : val;
+    }
+
+    const numVal = Number(val);
+    if (!isNaN(numVal) && typeof val !== 'boolean') {
+        if (numVal >= 35000 && numVal <= 70000) {
+            try {
+                const parsed = xlsx.SSF.parse_date_code(numVal);
+                if (parsed && parsed.y && parsed.m && parsed.d) {
+                    return new Date(parsed.y, parsed.m - 1, parsed.d);
+                }
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    if (typeof val !== 'string') return null;
+
+    const strVal = val.trim();
+    if (!strVal || strVal === '/' || strVal === '-' || strVal.toLowerCase() === 'null') return null;
+
+    const dotMatch = strVal.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/);
+    if (dotMatch) {
+        const dan = parseInt(dotMatch[1], 10);
+        const mesec = parseInt(dotMatch[2], 10) - 1;
+        const godina = parseInt(dotMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    const slashMatch = strVal.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (slashMatch) {
+        const dan = parseInt(slashMatch[1], 10);
+        const mesec = parseInt(slashMatch[2], 10) - 1;
+        const godina = parseInt(slashMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    const isoMatch = strVal.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+    if (isoMatch) {
+        const godina = parseInt(isoMatch[1], 10);
+        const mesec = parseInt(isoMatch[2], 10) - 1;
+        const dan = parseInt(isoMatch[3], 10);
+        const d = new Date(godina, mesec, dan);
+        if (!isNaN(d.getTime())) return d;
+    }
+
+    const dStandard = new Date(strVal);
+    if (!isNaN(dStandard.getTime()) && dStandard.getFullYear() > 1990 && dStandard.getFullYear() < 2100) {
+        return dStandard;
+    }
+
+    return null;
+}
+
+function izracunajGodinuZaNarudzbenicu(datumPlacanja, datumZakljucenja) {
+    const dPla = parsujDatum(datumPlacanja);
+    if (dPla) {
+        return dPla.getFullYear();
+    }
+
+    const dZak = parsujDatum(datumZakljucenja);
+    if (dZak) {
+        const dKopija = new Date(dZak.getTime());
+        dKopija.setDate(dKopija.getDate() + 45);
+        return dKopija.getFullYear();
+    }
+
+    if (datumZakljucenja) {
+        const match = datumZakljucenja.toString().match(/\b(19|20)\d{2}\b/);
+        if (match) return parseInt(match[0], 10);
+    }
+
+    return null;
 }
 
 const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
@@ -31,24 +113,14 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
         const podaci = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
         let kolone = { 
-            izvor: -1, 
-            konto: -1, 
-            predmetNabavke: -1, 
-            izuzece: -1, 
-            vrstaPredmeta: -1, 
-            brojOznaka: -1, 
-            datumZakljucenja: -1, 
-            nazivUgovorneStrane: -1, 
-            ukupniIznos: -1, 
-            ukupniIznosSaPdv: -1, 
-            realizovano: -1, 
-            valuta: -1, 
-            status: -1 
+            izvor: -1, konto: -1, predmetNabavke: -1, izuzece: -1, 
+            vrstaPredmeta: -1, brojOznaka: -1, datumZakljucenja: -1, 
+            nazivUgovorneStrane: -1, ukupniIznos: -1, ukupniIznosSaPdv: -1, 
+            realizovano: -1, valuta: -1, status: -1, datumPlacanja: -1 
         };
 
         let startniRed = -1;
 
-        // Provera zaglavlja: OBAVEZNO mora imati i 'konto' i 'izvor' u ISTOM redu
         for (let i = 0; i < podaci.length; i++) {
             const red = podaci[i].map(c => 
                 c ? cir2lat(c.toString()).replace(/[\r\n]+/g, ' ').toLowerCase().replace(/\s+/g, ' ').trim() : ""
@@ -71,13 +143,12 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
                 kolone.realizovano = red.findIndex(c => c.includes('realizovano') || c.includes('realizacija'));
                 kolone.valuta = red.findIndex(c => c.includes('valuta'));
                 kolone.status = red.findIndex(c => c.includes('status'));
-                kolone.datumPlacanja = red.findIndex(c => c.includes('zavr'));
+                kolone.datumPlacanja = red.findIndex(c => c.includes('zavr') || c.includes('datum placa') || c.includes('datum plaća'));
                 startniRed = i + 1;
                 break;
             }
         }
 
-        // Ako ne postoji validno zaglavlje, odmah prekida rad
         if (startniRed === -1 || kolone.konto === -1 || kolone.izvor === -1) {
             return {
                 success: false,
@@ -114,42 +185,10 @@ const parsujNarudzbeniceExcel = (fileBuffer, originalname = 'Dokument') => {
             }
 
             const datumZakljucenja = red[kolone.datumZakljucenja] || null;
-            const datumPlacanja = red[kolone.datumPlacanja] || null;
-            
-            let godina = null;
-            if (datumZakljucenja) {
-                if (typeof datumZakljucenja === 'number') {
-                    // Dodajemo 45 dana direktno na Excel serijski datum
-                    godina = xlsx.SSF.parse_date_code(datumZakljucenja + 45).y;
-                } else {
-                    let d;
-                    const strDatum = datumZakljucenja.toString().trim();
+            const datumPlacanja = kolone.datumPlacanja !== -1 ? red[kolone.datumPlacanja] : null;
 
-                    // Provera da li je datum u formatu DD.MM.YYYY
-                    if (strDatum.includes('.')) {
-                        const delovi = strDatum.split('.').filter(Boolean);
-                        if (delovi.length >= 3) {
-                            // Meseci u JS Date počinju od 0 (0 = Januar, 11 = Decembar)
-                            d = new Date(parseInt(delovi[2], 10), parseInt(delovi[1], 10) - 1, parseInt(delovi[0], 10));
-                        }
-                    } else {
-                        d = new Date(strDatum);
-                    }
+            let godina = izracunajGodinuZaNarudzbenicu(datumPlacanja, datumZakljucenja);
 
-                    if (d && !isNaN(d.getTime())) {
-                        // Uvećavamo datum za 45 dana
-                        d.setDate(d.getDate() + 45);
-                        godina = d.getFullYear();
-                    } else {
-                        // Rezervna opcija sa regex-om ako parsiranje ne uspe
-                        const match = strDatum.match(/\b(19|20)\d{2}\b/);
-                        if (match) godina = parseInt(match[0], 10);
-                    }
-                }
-            }
-
-
-            // Mapiranje statusa (zakljucen -> za placanje, izvrsen -> placeno)
             const siroviStatus = dajTekst(red, kolone.status);
             let mapiraniStatus = siroviStatus;
 
