@@ -1,0 +1,34 @@
+<%
+    // Gornja traka za sve stranice. Poziv: include('partials/topbar', { aktivna: 'ugovori' })
+    // Vrednosti za "aktivna": 'izvori', 'ugovori', 'konta', 'logovi'
+    const ik = (d) => '<svg class="ik" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+    const IK = {
+        wallet:  ik('<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>'),
+        ugovori: ik('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>'),
+        konta:   ik('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>'),
+        logovi:  ik('<path d="M4 17l6-6-6-6M12 19h8"/>'),
+        moon:    ik('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+        sun:     ik('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>')
+    };
+    const stavke = [
+        { kljuc: 'izvori',  url: '/',             naziv: 'Izvori finansiranja', ikona: IK.wallet },
+        { kljuc: 'ugovori', url: '/ugovori',      naziv: 'Ugovori',             ikona: IK.ugovori },
+        { kljuc: 'konta',   url: '/konta-nivoi',  naziv: 'Stanje po kontima',   ikona: IK.konta },
+        { kljuc: 'logovi',  url: '/admin/logovi', naziv: 'Logovi',              ikona: IK.logovi }
+    ];
+%>
+<header class="topbar">
+    <div class="topbar-in">
+        <a class="brand" href="/"><span class="brand-znak"><%- IK.wallet %></span><span>Nabavke</span></a>
+
+        <nav class="nav" aria-label="Glavna navigacija">
+            <% stavke.forEach(st => { %>
+                <a href="<%= st.url %>"<% if (aktivna === st.kljuc) { %> class="aktivan" aria-current="page"<% } %>><%- st.ikona %><%= st.naziv %></a>
+            <% }) %>
+        </nav>
+
+        <button type="button" class="icon-btn" onclick="promeniTemu()" title="Svetla / tamna tema" aria-label="Promeni temu">
+            <span class="tema-svetla"><%- IK.moon %></span><span class="tema-tamna"><%- IK.sun %></span>
+        </button>
+    </div>
+</header>

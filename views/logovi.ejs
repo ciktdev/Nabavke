@@ -1,60 +1,230 @@
-<!DOCTYPE html>
+<%
+    const svg = (d) => '<svg class="ik" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+    const I = {
+        search:   svg('<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>'),
+        copy:     svg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+        download: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
+        down:     svg('<path d="M12 5v14M19 12l-7 7-7-7"/>'),
+        up:       svg('<path d="M12 19V5M5 12l7-7 7 7"/>')
+    };
+    const tabovi = [
+        { id: 'konzola', naziv: 'Trenutno skeniranje', tekst: konzola, fajl: 'sve_konzole.log' },
+        { id: 'greske',  naziv: 'Greške sa skeniranja', tekst: greske,  fajl: 'sve_greske.log' },
+        { id: 'promene', naziv: 'Istorija promena',     tekst: promene, fajl: 'promene.log' }
+    ];
+%><!DOCTYPE html>
 <html lang="sr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistemski Logovi</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; margin: 20px; color: #333; }
-        h1 { color: #2c3e50; }
-        .nav-link { background: #007bff; color: white; text-decoration: none; padding: 10px 15px; border-radius: 4px; display: inline-block; margin-bottom: 20px; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
-        .tab-btn { padding: 10px 20px; border: none; background: #ddd; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .tab-btn.active { background: #2c3e50; color: white; }
-        .log-kontejner { display: none; background: #1e1e1e; color: #39ff14; padding: 15px; border-radius: 6px; box-shadow: inset 0 0 10px #000; overflow-y: auto; max-height: 600px; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 14px; }
-        .log-kontejner.active { display: block; }
-        .err-log { color: #ff4a4a; }
-        .promene-log { color: #00ffff; }
-    </style>
+    <%- include('partials/head', { naslov: 'Logovi – Nabavke' }) %>
 </head>
-<body>
+<body class="app">
+    <%- include('partials/topbar', { aktivna: 'logovi' }) %>
 
-    <a href="/" class="nav-link">← Nazad na Početnu</a>
-    <h1>Sistemski Pregled Logova Uživo</h1>
+    <main class="container">
 
-    <div class="tabs">
-        <button class="tab-btn active" onclick="otvoriTab(event, 'tab-konzola')">Trenutno Skeniranje</button>
-        <button class="tab-btn" onclick="otvoriTab(event, 'tab-greske')">Greške sa Skeniranja</button>
-        <button class="tab-btn" onclick="otvoriTab(event, 'tab-promene')">Istorija Promena (Stari Log)</button>
-    </div>
+        <div class="page-head">
+            <div>
+                <h1>Sistemski logovi</h1>
+                <p class="podnaslov">Pregled log fajlova sa servera. Osveži stranicu da učitaš najnovije zapise.</p>
+            </div>
+            <div class="akcije">
+                <button type="button" class="btn btn-secondary" onclick="location.reload()">Osveži</button>
+            </div>
+        </div>
 
-    <div id="tab-konzola" class="log-kontejner active"><%= konzola %></div>
+        <div class="log-tabovi" role="tablist">
+            <% tabovi.forEach((t, i) => { %>
+                <button type="button" role="tab" class="log-tab<%= i === 0 ? ' aktivan' : '' %>" id="dugme-<%= t.id %>" data-tab="<%= t.id %>" aria-selected="<%= i === 0 %>">
+                    <%= t.naziv %> <span class="log-broj<%= t.id === 'greske' ? ' log-broj-greska' : '' %>" id="broj-<%= t.id %>">0</span>
+                </button>
+            <% }) %>
+        </div>
 
-    <div id="tab-greske" class="log-kontejner err-log"><%= greske %></div>
+        <div class="toolbar log-alat">
+            <div class="input-ikona">
+                <%- I.search %>
+                <input class="input" type="search" id="log-trazi" placeholder="Pretraži u ovom logu…" autocomplete="off">
+            </div>
+            <label class="log-opcija"><input type="checkbox" id="log-samo"> Samo linije sa pogotkom</label>
+            <label class="log-opcija"><input type="checkbox" id="log-prelom" checked> Prelom dugih linija</label>
+            <span class="broj-rezultata" id="log-status"></span>
+            <span class="log-razmak"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="log-vrh"><%- I.up %>Vrh</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="log-dno"><%- I.down %>Dno</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="log-kopiraj"><%- I.copy %>Kopiraj</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="log-preuzmi"><%- I.download %>Preuzmi</button>
+        </div>
 
-    <div id="tab-promene" class="log-kontejner promene-log"><%= promene %></div>
+        <% tabovi.forEach(t => { %>
+            <div class="log-izvor" id="izvor-<%= t.id %>" data-fajl="<%= t.fajl %>" hidden><%= t.tekst %></div>
+        <% }) %>
 
+        <div class="log-terminal" id="log-terminal" tabindex="0" aria-live="off"></div>
+    </main>
+
+    <script src="/js/script.js"></script>
     <script>
-        function otvoriTab(evt, tabName) {
-            // Sakrij sve logove
-            document.querySelectorAll('.log-kontejner').forEach(el => el.classList.remove('active'));
-            // Skloni aktivnu klasu sa dugmića
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            
-            // Prikaži trenutni tab i proglasi dugme aktivnim
-            document.getElementById(tabName).classList.add('active');
-            evt.currentTarget.classList.add('active');
+    (function () {
+        const PRAZNO = /^Nema zapisa u logu/;
+        const MAX_LINIJA = 20000;
+        const stanje = {};      // id -> { linije: [..], pocetak: broj, ukupno: broj, sirov }
+        let aktivan = 'konzola';
 
-            // Automatski skroluj na dno loga da se odmah vidi najnoviji zapis
-            const aktivniLog = document.getElementById(tabName);
-            aktivniLog.scrollTop = aktivniLog.scrollHeight;
+        const terminal = document.getElementById('log-terminal');
+        const trazi = document.getElementById('log-trazi');
+        const samo = document.getElementById('log-samo');
+        const prelom = document.getElementById('log-prelom');
+        const status = document.getElementById('log-status');
+
+        function klasaLinije(t) {
+            if (/\b(error|err|greška|greska|exception|fatal|failed|neuspe)/i.test(t)) return 'l-greska';
+            if (/\b(warn|warning|upozorenje)/i.test(t)) return 'l-upozorenje';
+            return '';
         }
 
-        // Automatski skroluj prvi tab na dno pri učitavanju
-        window.onload = function() {
-            const kon = document.getElementById('tab-konzola');
-            kon.scrollTop = kon.scrollHeight;
-        };
+        // Priprema podataka za svaki tab + brojači
+        ['konzola', 'greske', 'promene'].forEach(id => {
+            const sirov = document.getElementById('izvor-' + id).textContent;
+            const prazan = PRAZNO.test(sirov.trim()) || sirov.trim() === '';
+            let linije = prazan ? [] : sirov.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n');
+            const ukupno = linije.length;
+            let pocetak = 1;
+            if (ukupno > MAX_LINIJA) { pocetak = ukupno - MAX_LINIJA + 1; linije = linije.slice(-MAX_LINIJA); }
+            stanje[id] = { linije, pocetak, ukupno, sirov: prazan ? '' : sirov, prazan, poruka: sirov.trim() };
+            document.getElementById('broj-' + id).textContent = ukupno.toLocaleString('sr-RS');
+        });
+
+        function iscrtaj(naDno) {
+            const s = stanje[aktivan];
+            const upit = trazi.value.trim();
+            const upitL = upit.toLowerCase();
+            const samoPogoci = samo.checked && upit !== '';
+            terminal.classList.toggle('prelom', prelom.checked);
+            terminal.textContent = '';
+
+            if (s.prazan) {
+                const p = document.createElement('div');
+                p.className = 'log-prazno';
+                p.textContent = s.poruka || 'Nema zapisa u logu.';
+                terminal.appendChild(p);
+                status.textContent = '';
+                return;
+            }
+
+            const frag = document.createDocumentFragment();
+            if (s.ukupno > s.linije.length) {
+                const n = document.createElement('div');
+                n.className = 'log-napomena';
+                n.textContent = `Prikazano poslednjih ${s.linije.length.toLocaleString('sr-RS')} od ${s.ukupno.toLocaleString('sr-RS')} linija. „Preuzmi“ daje ceo log.`;
+                frag.appendChild(n);
+            }
+
+            let pogodaka = 0, prikazano = 0;
+            s.linije.forEach((tekst, i) => {
+                const pogodak = upit !== '' && tekst.toLowerCase().includes(upitL);
+                if (pogodak) pogodaka++;
+                if (samoPogoci && !pogodak) return;
+                prikazano++;
+
+                const red = document.createElement('div');
+                red.className = 'l ' + klasaLinije(tekst) + (pogodak ? ' l-pogodak' : '');
+                const br = document.createElement('span');
+                br.className = 'l-br';
+                br.textContent = s.pocetak + i;
+                const sad = document.createElement('span');
+                sad.className = 'l-tx';
+
+                if (pogodak) {
+                    const mala = tekst.toLowerCase();
+                    let od = 0, poz;
+                    while ((poz = mala.indexOf(upitL, od)) !== -1) {
+                        if (poz > od) sad.appendChild(document.createTextNode(tekst.slice(od, poz)));
+                        const m = document.createElement('mark');
+                        m.textContent = tekst.slice(poz, poz + upitL.length);
+                        sad.appendChild(m);
+                        od = poz + upitL.length;
+                    }
+                    if (od < tekst.length) sad.appendChild(document.createTextNode(tekst.slice(od)));
+                } else {
+                    sad.textContent = tekst === '' ? ' ' : tekst;
+                }
+                red.append(br, sad);
+                frag.appendChild(red);
+            });
+            terminal.appendChild(frag);
+
+            status.textContent = upit
+                ? (pogodaka ? `Pogodaka (linija): ${pogodaka.toLocaleString('sr-RS')}` : 'Nema pogodaka')
+                : `Linija: ${s.ukupno.toLocaleString('sr-RS')}`;
+
+            if (naDno) terminal.scrollTop = terminal.scrollHeight;
+            else if (upit && pogodaka) {
+                const prvi = terminal.querySelector('.l-pogodak');
+                if (prvi) terminal.scrollTop = Math.max(0, prvi.offsetTop - 60);
+            }
+        }
+
+        function otvoriTab(id) {
+            aktivan = id;
+            document.querySelectorAll('.log-tab').forEach(b => {
+                const on = b.dataset.tab === id;
+                b.classList.toggle('aktivan', on);
+                b.setAttribute('aria-selected', on);
+            });
+            terminal.dataset.tab = id;
+            iscrtaj(true); // novi zapisi su na dnu
+        }
+
+        document.querySelectorAll('.log-tab').forEach(b => b.addEventListener('click', () => otvoriTab(b.dataset.tab)));
+
+        let tajmer = null;
+        trazi.addEventListener('input', () => { clearTimeout(tajmer); tajmer = setTimeout(() => iscrtaj(false), 150); });
+        samo.addEventListener('change', () => iscrtaj(false));
+        prelom.addEventListener('change', () => iscrtaj(false));
+
+        document.getElementById('log-vrh').addEventListener('click', () => { terminal.scrollTop = 0; });
+        document.getElementById('log-dno').addEventListener('click', () => { terminal.scrollTop = terminal.scrollHeight; });
+
+        document.getElementById('log-kopiraj').addEventListener('click', async () => {
+            const s = stanje[aktivan];
+            if (s.prazan) { prikaziToast('Log je prazan, nema šta da se kopira.', 'upozorenje'); return; }
+            try {
+                await navigator.clipboard.writeText(s.sirov);
+                prikaziToast('Log je kopiran u clipboard.', 'uspeh');
+            } catch (e) {
+                // Rezerva za http (clipboard API traži https ili localhost)
+                const ta = document.createElement('textarea');
+                ta.value = s.sirov; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (e2) { /* ignoriši */ }
+                ta.remove();
+                prikaziToast(ok ? 'Log je kopiran u clipboard.' : 'Kopiranje nije uspelo.', ok ? 'uspeh' : 'greska');
+            }
+        });
+
+        document.getElementById('log-preuzmi').addEventListener('click', () => {
+            const s = stanje[aktivan];
+            if (s.prazan) { prikaziToast('Log je prazan, nema šta da se preuzme.', 'upozorenje'); return; }
+            const ime = document.getElementById('izvor-' + aktivan).dataset.fajl;
+            const url = URL.createObjectURL(new Blob([s.sirov], { type: 'text/plain;charset=utf-8' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = ime;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+
+        // Prečica: Ctrl+F u terminalu fokusira pretragu loga
+        terminal.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); trazi.focus(); trazi.select(); }
+        });
+
+        // Greške: crveni brojač samo kada ih ima
+        const brGreske = document.getElementById('broj-greske');
+        brGreske.classList.toggle('ima', stanje.greske.ukupno > 0);
+
+        otvoriTab('konzola');
+    })();
     </script>
 </body>
 </html>

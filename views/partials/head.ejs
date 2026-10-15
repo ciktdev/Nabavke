@@ -1,0 +1,14 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= naslov %></title>
+<script>
+    // Tema se postavlja pre iscrtavanja da ne bi bilo "treptanja"
+    (function () {
+        try {
+            var t = localStorage.getItem('tema');
+            if (!t) t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'tamna' : 'svetla';
+            document.documentElement.dataset.tema = t;
+        } catch (e) {}
+    })();
+</script>
+<link rel="stylesheet" href="/css/app.css">

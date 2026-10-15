@@ -1,229 +1,260 @@
-<!DOCTYPE html>
+<%
+    // ---- Pomoćne vrednosti za prikaz (nema promene logike) ----
+    const svg = (d) => '<svg class="ik" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+    const I = {
+        wallet:  svg('<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>'),
+        ugovori: svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>'),
+        konta:   svg('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>'),
+        logovi:  svg('<path d="M4 17l6-6-6-6M12 19h8"/>'),
+        moon:    svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+        sun:     svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+        plus:    svg('<path d="M12 5v14M5 12h14"/>'),
+        upload:  svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>'),
+        download:svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
+        search:  svg('<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>'),
+        columns: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/>'),
+        trash:   svg('<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+        chev:    svg('<path d="M9 18l6-6-6-6"/>'),
+        x:       svg('<path d="M18 6L6 18M6 6l12 12"/>'),
+        pencil:  svg('<path d="M17 3a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+        folder:  svg('<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>'),
+        warn:    svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>')
+    };
+
+    const fmt = (n) => Number(n || 0).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const sortLink = (kolona) => {
+        const sledeci = (filteri.sort_by === kolona && filteri.order === 'asc') ? 'desc' : 'asc';
+        return '/?godina=' + encodeURIComponent(filteri.godina) + '&pretraga=' + encodeURIComponent(filteri.pretraga) + '&sort_by=' + kolona + '&order=' + sledeci;
+    };
+    const smer = (kolona) => filteri.sort_by === kolona ? (filteri.order === 'asc' ? '▲' : '▼') : '';
+%><!DOCTYPE html>
 <html lang="sr">
 <head>
-    <meta charset="UTF-8">
-    <title>Fondovi - Nabavke</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <%- include('partials/head', { naslov: 'Izvori finansiranja – Nabavke' }) %>
 </head>
-<body>
+<body class="app">
 
-    <div style="margin: 20px 0;">
-        <a href="/ugovori" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
-            📊 Idi na pregled ugovora
-        </a>
+    <%- include('partials/topbar', { aktivna: 'izvori' }) %>
 
-        <a href="/admin/logovi" style="display: inline-block; padding: 10px 20px; background: #2c3e50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
-            📊 Pogledaj Logove
-        </a>
+    <main class="container">
 
-        <!-- NOVO DUGME ZA NIVOE KONTA -->
-        <a href="/konta-nivoi" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
-            📈 Stanje po kontima
-        </a>
-    </div>
-
-    <h2>Upravljanje Nabavkama</h2>
-
-    <div class="forma">
-        <h3>Dodaj novi izvor finansiranja ručno</h3>
-        <form action="/dodaj" method="POST">
-            <input type="text" name="ime" placeholder="Izvor finansiranja" required>
-            <input type="number" name="sredstva" placeholder="Iznos" required>
-            <input type="number" name="godina" value="<%= new Date().getFullYear() %>" placeholder="Godina" required>
-            <button type="submit">Dodaj izvor finansiranja</button>
-        </form>
-    </div>
-
-    <!-- STANDARDNI UVOZ EXCEL FAJLOVA -->
-    <div class="forma excel-sekcija">
-        <h3>Uvoz standardnih Excel-a</h3>
-    
-        <div style="margin-bottom: 20px; padding: 10px; border-bottom: 1px dashed #999;">
-            <label><strong>1. Odaberi specifične fajlove:</strong></label><br>
-            <p><small>Možeš izabrati jedan ili više fajlova (drži Ctrl za više).</small></p>
-            <input type="file" id="fileInput" multiple accept=".xlsx, .xls">
-            <button type="button" onclick="posaljiSaInputa('fileInput')">Učitaj izabrane fajlove</button>
+        <div class="page-head">
+            <div>
+                <h1>Izvori finansiranja</h1>
+                <p class="podnaslov">Planirana i utrošena sredstva po izvorima, kontima i godinama.</p>
+            </div>
+            <div class="akcije">
+                <a class="btn btn-secondary" href="/izvoz-sve-excel"><%- I.download %>Izvezi sve u Excel</a>
+                <button type="button" class="btn btn-secondary" onclick="otvoriDijalog('dlg-izvor')"><%- I.plus %>Novi izvor</button>
+                <button type="button" class="btn btn-primary" onclick="otvoriDijalog('dlg-uvoz')"><%- I.upload %>Uvoz podataka</button>
+            </div>
         </div>
 
-        <div style="padding: 10px;">
-            <label><strong>2. Odaberi ceo folder:</strong></label><br>
-            <p><small>Skeniranje svih Excel fajlova unutar izabranog foldera.</small></p>
-            <input type="file" id="folderInput" webkitdirectory directory multiple>
-            <button type="button" onclick="posaljiSaInputa('folderInput')">Skeniraj ceo folder</button>
-        </div>
-    </div>
+        <!-- Pretraga i podešavanje kolona -->
+        <div class="toolbar">
+            <form class="trazi" action="/" method="GET">
+                <div class="input-ikona">
+                    <%- I.search %>
+                    <input class="input" type="search" name="pretraga" placeholder="Pretraži po nazivu izvora…" value="<%= filteri.pretraga || '' %>">
+                </div>
+                <input class="input input-godina" type="number" name="godina" placeholder="Godina" value="<%= filteri.godina || '' %>">
+                <input type="hidden" name="sort_by" value="<%= filteri.sort_by %>">
+                <input type="hidden" name="order" value="<%= filteri.order %>">
+                <button type="submit" class="btn btn-secondary">Filtriraj</button>
+                <% if (filteri.pretraga || filteri.godina) { %>
+                    <a class="btn btn-ghost" href="/">Poništi</a>
+                <% } %>
+            </form>
 
-    <!-- ================================================================= -->
-    <!-- POSEBNA SEKCIJA ZA UVOZ NARUDŽBENICA (/ucitaj-narudzbenice) -->
-    <!-- ================================================================= -->
-    <div class="forma excel-sekcija" style="border: 2px solid #e67e22; background-color: #fffdf9; margin-top: 25px;">
-        <h3 style="color: #d35400; margin-top: 0;">📑 Uvoz Narudžbenica (Poseban format)</h3>
-        <p style="margin-bottom: 15px;">
-            <small style="color: #666;">
-                ⚠️ <strong>Napomena:</strong> Ova sekcija obrađuje specifične fajlove narudžbenica i šalje ih na posebnu obradu. Ne koristiti za standardne fajlove.
-            </small>
-        </p>
-
-        <div style="padding: 10px; background: #fff; border: 1px dashed #e67e22; border-radius: 4px;">
-            <label><strong>Odaberi Excel fajl narudžbenice:</strong></label><br>
-            <input type="file" id="narudzbenicaFileInput" accept=".xlsx, .xls" style="margin-top: 10px;">
-            <button type="button" onclick="posaljiNarudzbenicu()">
-                 Učitaj narudžbenicu
-            </button>
-        </div>
-    </div>
-
-    <div class="filter-kolona-kontejner" style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; margin-top: 25px;">
-        <h5 style="margin-top: 0;">Podesi prikaz kolona:</h5>
-        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <label><input type="checkbox" class="col-toggle" value="col-datum" checked> Datum nabavke</label>
-            <label><input type="checkbox" class="col-toggle" value="col-racun" checked> Br. računa</label>
-            <label><input type="checkbox" class="col-toggle" value="col-artikal" checked> Naziv artikla</label>
-            <label><input type="checkbox" class="col-toggle" value="col-kolicina"> Količina</label>
-            <label><input type="checkbox" class="col-toggle" value="col-cena-bez"> Cena bez PDV</label>
-            <label><input type="checkbox" class="col-toggle" value="col-cena-sa"> Cena sa PDV</label>
-            <label><input type="checkbox" class="col-toggle" value="col-vred-bez"> Vrednost bez PDV</label>
-            <label><input type="checkbox" class="col-toggle" value="col-vred-sa" checked> Vrednost sa PDV</label>
-            <label><input type="checkbox" class="col-toggle" value="col-status"> Status plaćanja</label>
-            <label><input type="checkbox" class="col-toggle" value="col-datum-pl"> Datum plaćanja</label>
-            <label><input type="checkbox" class="col-toggle" value="col-institut" checked> Institut</label>
-            <label><input type="checkbox" class="col-toggle" value="col-fajl" checked>Naziv fajla</label>    
-            <label><input type="checkbox" class="col-toggle" value="col-dobavljac" checked> Dobavljač</label>
-            <label><input type="checkbox" class="col-toggle" value="col-nabavka" checked> Broj nabavke</label>
-            <label><input type="checkbox" class="col-toggle" value="col-partija" checked> Partija</label>
-            <label><input type="checkbox" class="col-toggle" value="col-ugovor" checked> Broj ugovora</label>
-            <label><input type="checkbox" class="col-toggle" value="col-datum-ug" checked> Datum ugovora</label>
-            <label><input type="checkbox" class="col-toggle" value="col-izuzece" checked> Izuzeće</label>
-            <label><input type="checkbox" class="col-toggle" value="col-vrsta-pred" checked> Vrsta predmeta</label>
-            <label><input type="checkbox" class="col-toggle" value="col-realizovano" checked> Realizovano</label>
-            <label><input type="checkbox" class="col-toggle" value="col-valuta" checked> Valuta</label>
-        </div>
-    </div>
-
-    <div style="display: flex; justify-content: flex-end; margin-top: 15px; margin-bottom: 15px;">
-        <a href="/izvoz-sve-excel" 
-            style="background-color: #28a745; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: background 0.2s;"
-            onmouseover="this.style.backgroundColor='#218838'" 
-            onmouseout="this.style.backgroundColor='#28a745'">
-            📊 Izvezi sve u Excel
-        </a>
-    </div>
-
-    <fieldset class="forma">
-        <legend>Filteri i Pretraga</legend>
-        <form action="/" method="GET">
-            <input type="text" name="pretraga" placeholder="Pretraži po imenu..." value="<%= filteri.pretraga || '' %>">
-            
-            <input type="number" name="godina" placeholder="Godina" value="<%= filteri.godina || '' %>" style="width: 80px;">
-
-            <button type="submit">Filtriraj</button>
-            <a href="/" style="margin-left: 10px; text-decoration: none; color: #666;">Poništi</a>
-        </form>
-    </fieldset>
-
-    <table>
-        <thead>
-            <tr>
-                <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=godina&order=<%= (filteri.sort_by === 'godina' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
-                        Godina <%= filteri.sort_by === 'godina' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
-                    </a>
-                </th>
-                <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=ime&order=<%= (filteri.sort_by === '' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
-                        Izvor finansiranja <%= filteri.sort_by === 'ime' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
-                    </a>
-                </th>
-                <th>
-                    <a href="/?godina=<%= filteri.godina %>&pretraga=<%= filteri.pretraga %>&sort_by=sredstva&order=<%= (filteri.sort_by === 'sredstva' && filteri.order === 'asc') ? 'desc' : 'asc' %>">
-                        Sredstva (Planirano) <%= filteri.sort_by === 'sredstva' ? (filteri.order === 'asc' ? '🔼' : '🔽') : '' %>
-                    </a>
-                </th>
-                
-                <th>Utrošeno (Suma konta)</th>
-                <th>Dostupno</th>
-                <th>Obrisi </th>
-            </tr>
-        </thead>
-        <tbody>
-        <% fondovi.forEach(fond => { %>
-            <tr class="fond-glavni-red" style="cursor: pointer;" onclick="prikaziKonta('<%= fond.id %>')">
-                <td><strong><%= fond.godina %></strong> </td>
-                <td><strong><%= fond.ime %></strong> </td>
-                
-                <td class="sredstva-celija" onclick="event.stopPropagation(); izmeniSredstva('<%= fond.id %>', '<%= fond.ime %>', '<%= fond.sredstva %>')">
-                    <span id="iznos-<%= fond.id %>">
-                        <%= Number(fond.sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                    </span> 
-                </td>
-                
-                <td style="color: #d9534f;">
-                    <%= Number(fond.utrosena_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-                
-                <td style="font-weight: bold; color: <%= fond.dostupna_sredstva < 0 ? 'red' : 'green' %>">
-                   <%= Number(fond.dostupna_sredstva).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-                <td>
-                    <button onclick="obrisiFond(<%= fond.id %>)" class="btn-obrisi" title="Obriši fond">
-                        🗑️ 
-                    </button>
-                </td>
-                
-            </tr>
-
-            <tr id="fond-expand-<%= fond.id %>" class="fond-expand-red" style="display: none;">
-                <td colspan="6">
-                    <div id="lista-konta-<%= fond.id %>" style="padding: 15px; border: 1px solid #adc5cf; border-radius: 8px; margin: 10px; background: #fff;">
-                        <p>Učitavanje kontova...</p> 
+            <details class="dropdown" id="dd-kolone">
+                <summary class="btn btn-secondary"><%- I.columns %>Kolone stavki</summary>
+                <div class="dropdown-panel">
+                    <div class="dropdown-akcije">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="kolonePodesi('sve')">Prikaži sve</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="kolonePodesi('osnovno')">Samo osnovne</button>
                     </div>
-                </td>
-            </tr>
-        <% }) %>
-        </tbody>
-    </table>
+                    <div class="dropdown-grid">
+                        <label><input type="checkbox" class="col-toggle" value="col-datum" checked> Datum nabavke</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-racun" checked> Br. računa</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-artikal" checked> Naziv artikla</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-kolicina"> Količina</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-cena-bez"> Cena bez PDV</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-cena-sa"> Cena sa PDV</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-vred-bez"> Vrednost bez PDV</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-vred-sa" checked> Vrednost sa PDV</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-status"> Status plaćanja</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-datum-pl"> Datum plaćanja</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-institut" checked> Institut</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-fajl" checked> Naziv fajla</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-dobavljac" checked> Dobavljač</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-nabavka" checked> Broj nabavke</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-partija" checked> Partija</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-ugovor" checked> Broj ugovora</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-datum-ug" checked> Datum ugovora</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-izuzece" checked> Izuzeće</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-vrsta-pred" checked> Vrsta predmeta</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-realizovano" checked> Realizovano</label>
+                        <label><input type="checkbox" class="col-toggle" value="col-valuta" checked> Valuta</label>
+                    </div>
+                </div>
+            </details>
+        </div>
 
-    <!-- SKRIPTA ZA SLANJE NARUDŽBENICA -->
-    <script>
-    async function posaljiNarudzbenicu() {
-        const input = document.getElementById('narudzbenicaFileInput');
-        if (!input.files || input.files.length === 0) {
-            alert('Molimo odaberite Excel fajl narudžbenice.');
-            return;
-        }
+        <!-- Traka konteksta: pri skrolu pokazuje čije stavke gledaš (popunjava script.js) -->
+        <div class="kontekst" id="kontekst" hidden><div class="kontekst-in" id="kontekst-in" role="button" tabindex="0" title="Klikni da se vratiš na ovaj red"></div></div>
 
-        const formData = new FormData();
-        formData.append('excelFajl', input.files[0]);
+        <!-- Tabela izvora finansiranja -->
+        <div class="karta">
+            <table class="tbl tbl-glavna">
+                <thead>
+                    <tr>
+                        <th><a href="<%= sortLink('godina') %>">Godina<span class="smer"><%= smer('godina') %></span></a></th>
+                        <th><a href="<%= sortLink('ime') %>">Izvor finansiranja<span class="smer"><%= smer('ime') %></span></a></th>
+                        <th class="num"><a href="<%= sortLink('sredstva') %>">Planirano<span class="smer"><%= smer('sredstva') %></span></a></th>
+                        <th class="num"><a href="<%= sortLink('utrosena_sredstva') %>">Utrošeno (suma konta)<span class="smer"><%= smer('utrosena_sredstva') %></span></a></th>
+                        <th class="num"><a href="<%= sortLink('dostupna_sredstva') %>">Dostupno<span class="smer"><%= smer('dostupna_sredstva') %></span></a></th>
+                        <th class="akcija"><span class="sr-only">Akcije</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% if (fondovi.length === 0) { %>
+                    <tr><td colspan="6" class="prazno">Nema izvora finansiranja za izabrani filter.</td></tr>
+                <% } %>
+                <% fondovi.forEach(fond => {
+                    const plan = Number(fond.sredstva) || 0;
+                    const utr = Number(fond.utrosena_sredstva) || 0;
+                    const dost = Number(fond.dostupna_sredstva) || 0;
+                    const pct = plan > 0 ? Math.round(utr / plan * 100) : null;
+                    const nivo = pct === null ? '' : (pct >= 90 ? 'kriticno' : (pct >= 70 ? 'upozorenje' : 'ok'));
+                %>
+                    <tr class="fond-glavni-red" id="fond-red-<%= fond.id %>"
+                        data-id="<%= fond.id %>" data-godina="<%= fond.godina %>" data-ime="<%= fond.ime %>"
+                        data-sredstva="<%= fond.sredstva %>"
+                        onclick="prikaziKonta('<%= fond.id %>')">
+                        <td class="c-godina"><span class="chev"><%- I.chev %></span><span class="godina-chip"><%= fond.godina %></span></td>
+                        <td><strong><%= fond.ime %></strong></td>
 
-        try {
-            const response = await fetch('/ucitaj-narudzbenice', {
-                method: 'POST',
-                body: formData
-            });
+                        <td class="num sredstva-celija" title="Klik za izmenu planiranog iznosa"
+                            onclick="event.stopPropagation(); izmeniSredstva('<%= fond.id %>')">
+                            <span id="iznos-<%= fond.id %>"><%= fmt(fond.sredstva) %></span><span class="olovka"><%- I.pencil %></span>
+                        </td>
 
-            const result = await response.json();
+                        <td class="num">
+                            <span class="v-utroseno" id="utroseno-fond-<%= fond.id %>"><%= fmt(utr) %></span>
+                            <div class="traka-omot" id="traka-fond-<%= fond.id %>">
+                                <% if (pct !== null) { %>
+                                    <div class="traka <%= nivo %>"><span style="width: <%= Math.max(0, Math.min(100, pct)) %>%"></span></div>
+                                    <span class="traka-oznaka"><%= pct %>%</span>
+                                <% } %>
+                            </div>
+                        </td>
 
-            let poruka = result.message || 'Obrada završena.';
+                        <td class="num"><span id="dostupno-fond-<%= fond.id %>" class="<%= dost < 0 ? 'neg' : 'pos' %>"><%= fmt(dost) %></span></td>
 
-            if (result.detaljiGresaka && result.detaljiGresaka.length > 0) {
-                poruka += '\n\nDETALJI:\n';
-                result.detaljiGresaka.forEach((g, idx) => {
-                    poruka += `${idx + 1}. [${g.fajl}] Artikal: "${g.artikal}" -> ${g.poruka}\n`;
-                });
-            }
+                        <td class="akcija">
+                            <button type="button" class="icon-btn btn-obrisi" title="Obriši izvor"
+                                    onclick="event.stopPropagation(); obrisiFond(<%= fond.id %>)"><%- I.trash %></button>
+                        </td>
+                    </tr>
 
-            alert(poruka);
+                    <tr id="fond-expand-<%= fond.id %>" class="fond-expand-red" style="display: none;">
+                        <td colspan="6">
+                            <div id="lista-konta-<%= fond.id %>" class="lista-konta">
+                                <div class="ucitavanje"><span class="spinner"></span>Učitavanje konta…</div>
+                            </div>
+                        </td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </main>
 
-            // Osvježavanje stranice
-            window.location.reload();
+    <!-- ============ Dijalog: novi izvor finansiranja ============ -->
+    <dialog class="dlg dlg-sm" id="dlg-izvor">
+        <form action="/dodaj" method="POST">
+            <div class="dlg-glava">
+                <h2>Novi izvor finansiranja</h2>
+                <button type="button" class="icon-btn" onclick="zatvoriDijalog('dlg-izvor')" aria-label="Zatvori"><%- I.x %></button>
+            </div>
+            <div class="dlg-telo">
+                <label class="polje"><span>Izvor finansiranja</span>
+                    <input class="input" type="text" name="ime" placeholder="npr. zdravstvo RFZO" required>
+                </label>
+                <div class="red-2">
+                    <label class="polje"><span>Planirani iznos (RSD)</span>
+                        <input class="input" type="number" name="sredstva" placeholder="0" step="any" required>
+                    </label>
+                    <label class="polje"><span>Godina</span>
+                        <input class="input" type="number" name="godina" value="<%= new Date().getFullYear() %>" required>
+                    </label>
+                </div>
+            </div>
+            <div class="dlg-podnozje">
+                <button type="button" class="btn btn-ghost" onclick="zatvoriDijalog('dlg-izvor')">Odustani</button>
+                <button type="submit" class="btn btn-primary">Dodaj izvor finansiranja</button>
+            </div>
+        </form>
+    </dialog>
 
-        } catch (err) {
-            console.error('Greška pri slanju narudžbenice:', err);
-            alert('Došlo je do mrežne greške prilikom slanja fajla.');
-        }
-    }
-</script>
+    <!-- ============ Dijalog: uvoz podataka ============ -->
+    <dialog class="dlg" id="dlg-uvoz">
+        <div class="dlg-glava">
+            <h2>Uvoz podataka</h2>
+            <button type="button" class="icon-btn" onclick="zatvoriDijalog('dlg-uvoz')" aria-label="Zatvori"><%- I.x %></button>
+        </div>
 
-    <script src="/js/script.js"></script> 
+        <div class="tabovi" role="tablist">
+            <button type="button" class="tab aktivan" data-uvoz-tab="excel" onclick="uvozTab('excel')">Standardni Excel fajlovi</button>
+            <button type="button" class="tab" data-uvoz-tab="narudzbenice" onclick="uvozTab('narudzbenice')">Narudžbenice</button>
+        </div>
+
+        <div class="dlg-telo" data-uvoz-panel="excel">
+            <p class="pomoc">Učitavaju se fajlovi koji imaju radni list <strong>REALIZACIJA</strong>. Stare stavke istih fajlova se zamenjuju novim.</p>
+
+            <div class="uvoz-kolone">
+                <div class="uvoz-blok">
+                    <h3>1. Izaberi fajlove</h3>
+                    <label class="dropzone" for="fileInput" id="dz-fajlovi">
+                        <span class="dz-ikona"><%- I.upload %></span>
+                        <span class="dz-naslov">Prevuci fajlove ovde ili klikni</span>
+                        <span class="dz-info">Možeš izabrati jedan ili više fajlova</span>
+                    </label>
+                    <input class="sr-only" type="file" id="fileInput" multiple accept=".xlsx, .xls">
+                    <button type="button" class="btn btn-primary" onclick="posaljiSaInputa('fileInput', this)">Učitaj izabrane fajlove</button>
+                </div>
+
+                <div class="uvoz-blok">
+                    <h3>2. Izaberi ceo folder</h3>
+                    <label class="dropzone" for="folderInput" id="dz-folder">
+                        <span class="dz-ikona"><%- I.folder %></span>
+                        <span class="dz-naslov">Klikni da izabereš folder</span>
+                        <span class="dz-info">Skeniraju se svi Excel fajlovi unutar foldera</span>
+                    </label>
+                    <input class="sr-only" type="file" id="folderInput" webkitdirectory directory multiple>
+                    <button type="button" class="btn btn-primary" onclick="posaljiSaInputa('folderInput', this)">Skeniraj ceo folder</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dlg-telo" data-uvoz-panel="narudzbenice" hidden>
+            <div class="napomena">
+                <%- I.warn %>
+                <div><strong>Napomena:</strong> ova opcija obrađuje specifične fajlove narudžbenica i šalje ih na posebnu obradu. Ne koristiti za standardne fajlove.</div>
+            </div>
+            <div class="uvoz-blok">
+                <label class="dropzone" for="narudzbenicaFileInput" id="dz-narudzbenica">
+                    <span class="dz-ikona"><%- I.upload %></span>
+                    <span class="dz-naslov">Prevuci Excel fajl narudžbenice ovde ili klikni</span>
+                    <span class="dz-info">Nije izabran nijedan fajl</span>
+                </label>
+                <input class="sr-only" type="file" id="narudzbenicaFileInput" accept=".xlsx, .xls">
+                <button type="button" class="btn btn-primary" onclick="posaljiNarudzbenicu(this)">Učitaj narudžbenicu</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="/js/script.js"></script>
 </body>
 </html>

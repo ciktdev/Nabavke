@@ -1,469 +1,389 @@
-<!DOCTYPE html>
+<%
+    // ---- Pomoćne vrednosti za prikaz (logika upozorenja ostaje ista) ----
+    const svg = (d) => '<svg class="ik" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+    const I = {
+        download: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
+        columns:  svg('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/>'),
+        trash:    svg('<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+        chev:     svg('<path d="M9 18l6-6-6-6"/>'),
+        pencil:   svg('<path d="M17 3a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>')
+    };
+    const fmt = (n) => Number(n || 0).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+%><!DOCTYPE html>
 <html lang="sr">
 <head>
-    <meta charset="UTF-8">
-    <title>Pregled Ugovora</title>
-    <link rel="stylesheet" href="/css/style.css"> 
-    <style>
-        /* Dodatni stilovi specifični za tabelu ugovora */
-        .tabela-ugovori {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background-color: #fff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-        .tabela-ugovori th {
-            background-color: #007bff;
-            color: white;
-            padding: 12px 15px;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 13px;
-        }
-        .tabela-ugovori td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
-            font-size: 14px;
-        }
-        .tabela-ugovori tr:hover {
-            background-color: #f8f9fa;
-        }
-        /* Stil za ćelije koje mogu da se kliknu i menjaju */
-        .izmenljiva-razlika {
-            cursor: pointer;
-            background-color: #fffdf0; /* Blago žućkasta podloga da asocira na izmenu */
-            font-weight: bold;
-            transition: background 0.2s ease;
-            position: relative;
-        }
-        .izmenljiva-razlika:hover {
-            background-color: #ffe8a1 !important; /* Jača boja na hover */
-        }
-        .izmenljiva-razlika::after {
-            content: " ✏️";
-            font-size: 11px;
-            opacity: 0.3;
-        }
-        .izmenljiva-razlika:hover::after {
-            opacity: 1;
-        }
-        /* Poravnanje brojeva desno */
-        .Broj {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Stilovi za alarm koji uspešno rade */
-        table.tabela-ugovori td.upozorenje-red {
-            background-color: #f8d7da !important;
-            color: #842029 !important;
-            font-weight: bold !important;
-            border-left: 5px solid #dc3545 !important;
-        }
-
-        table.tabela-ugovori tr:hover td.upozorenje-red {
-            background-color: #f5c2c7 !important;
-        }
-
-        /* Ovo pravilo cilja isključivo redove zaglavlja u tabelama stavki */
-        table[id^="tabela-stavki-ugovora-"] thead tr.stavke-header th {
-            background-color: #007bff !important;
-            color: #ffffff !important;
-            border-bottom: 2px solid #0056b3 !important;
-        }
-    </style>
+    <%- include('partials/head', { naslov: 'Ugovori – Nabavke' }) %>
 </head>
-<body>
+<body class="app">
+    <%- include('partials/topbar', { aktivna: 'ugovori' }) %>
 
-    <div style="margin: 20px;">
-        <a href="/" style="display: inline-block; padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; transition: background 0.2s;">
-            ⬅ Nazad na Stavke i Konta
-        </a>
-    </div>
+    <main class="container">
 
-    <div style="padding: 0 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="color: #333; margin: 0;">📋 Pregled svih ugovora i realizacije</h2>
-            <a href="/izvoz-ugovori-excel" 
-            style="background-color: #28a745; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: background 0.2s;"
-            onmouseover="this.style.backgroundColor='#218838'" 
-            onmouseout="this.style.backgroundColor='#28a745'">
-                📊 Izvoz u Excel
-            </a>
-        </div>
-        <p style="color: #666; font-size: 14px;">Kliknite na polja obojena žutom bojom kako biste ručno uneli ili izmenili ugovorenu vrednost.</p>
-        
-        <div id="podesi-prikaz-kolona" style="background: #f8f9fa; border: 1px solid #e3e6f0; padding: 15px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
-    <strong style="display: block; margin-bottom: 10px;">Podesi prikaz kolona:</strong>
-    <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
-        <label><input type="checkbox" data-kolona="col-datum" checked> Datum nabavke</label>
-        <label><input type="checkbox" data-kolona="col-racun" checked> Br. računa</label>
-        <label><input type="checkbox" data-kolona="col-dobavljac" checked> Dobavljač</label>
-        <label><input type="checkbox" data-kolona="col-nabavka" checked> Broj nabavke</label>
-        <label><input type="checkbox" data-kolona="col-konto" checked>Konto</label>
-        <label><input type="checkbox" data-kolona="col-izvor" checked> Izvor finansiranja</label>
-        <label><input type="checkbox" data-kolona="col-partija" checked> Partija</label>
-        <label><input type="checkbox" data-kolona="col-ugovor" checked> Broj ugovora</label>
-        <label><input type="checkbox" data-kolona="col-datum-ug" checked> Datum ugovora</label>
-        <label><input type="checkbox" data-kolona="col-artikal" checked> Naziv artikla</label>
-        <label><input type="checkbox" data-kolona="col-kolicina" checked> Količina</label>
-        <label><input type="checkbox" data-kolona="col-cena-bez" checked> Cena bez PDV</label>
-        <label><input type="checkbox" data-kolona="col-cena-sa" checked> Cena sa PDV</label>
-        <label><input type="checkbox" data-kolona="col-vred-bez" checked> Vrednost bez PDV</label>
-        <label><input type="checkbox" data-kolona="col-vred-sa" checked> Vrednost sa PDV</label>
-        <label><input type="checkbox" data-kolona="col-status" checked> Status plaćanja</label>
-        <label><input type="checkbox" data-kolona="col-datum-pl" checked> Datum plaćanja</label>
-        <label><input type="checkbox" data-kolona="col-institut" checked> Institut</label>
-        <label><input type="checkbox" data-kolona="col-fajl" checked> Excel fajl</label>
-    </div>
-</div>
-        <div class="mb-3">
-            <strong>Ukupno unetih ugovora: <%= ugovori.length %></strong>
-        </div>
-        <table class="tabela-ugovori">
-            <thead>
-                <tr>
-                    <th>R. Br.</th>
-                    <th>Broj Ugovora</th>
-                    <th>Datum Ugovora</th>
-                    <th class="Broj">Vrednost bez PDV</th>
-                    <th class="Broj">Vrednost sa PDV</th>
-                    <th class="Broj">Utrošeno bez PDV</th>
-                    <th class="Broj">Utrošeno sa PDV</th>
-                    <th class="Broj">Preostalo bez PDV</th>
-                    <th class="Broj">Preostalo sa PDV</th>
-                    <th style="text-align: center; width: 80px;">Akcija</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% ugovori.forEach((ugovor, index) => { %>
-                <% 
-                // Tvoja postojeća logika za računanje alarma i upozorenja
-                let v_sa_pdv = parseFloat(ugovor.vrednost_sa_pdv) || 0;
-                let u_sa_pdv = parseFloat(ugovor.utroseno_sa_pdv) || 0;
-            
-                let klasaBrojaUgovora = "";
-                let porukaUpozorenja = "";
-            
-                if (v_sa_pdv > 0) {
-                    let procenatPotrosnje = u_sa_pdv / v_sa_pdv;
-                    if (procenatPotrosnje > 0.7) {
-                        klasaBrojaUgovora = "upozorenje-red";
-                        porukaUpozorenja = "Upozorenje: Potrošeno je preko 70% ugovora!";
-                    }
-                } else if (v_sa_pdv === 0 && u_sa_pdv > 0) {
-                    klasaBrojaUgovora = "upozorenje-red";
-                    porukaUpozorenja = "Kritično: Ugovorena vrednost je 0,00, a sredstva se troše!";
-                }
-            %>
-
-            <tr id="ugovor-glavni-<%= ugovor.id %>" style="border-bottom: 1px solid #ddd; cursor: pointer;" onclick="prikaziStavkeUgovora(<%= ugovor.id %>)">
-                
-                <!-- REDNI BROJ (počinje od 1) -->
-                <td style="text-align: center; font-weight: bold; color: #555;">
-                    <%= index + 1 %>.
-                </td>
-                <td class="<%= klasaBrojaUgovora %>" style="font-weight: 500;" title="<%= porukaUpozorenja %>">
-                    <%= ugovor.broj_ugovora %>
-                </td>
-
-                <td class="datum-format-celija" data-sirovi-datum="<%= ugovor.datum_zakljucenja %>">
-                    <!-- Ostavljamo prazno, JS će popuniti -->
-                </td>
-
-                <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
-                    onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_bez_pdv', <%= Number(ugovor.vrednost_bez_pdv) %>)">
-                    <%= Number(ugovor.vrednost_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-
-                <!-- AŽURIRANA ĆELIJA ZA VREDNOST SA PDV-OM -->
-                <td class="Broj izmenljiva-razlika" title="Klikni za izmenu" 
-                    onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_sa_pdv', <%= Number(ugovor.vrednost_sa_pdv || 0) %>)">
-                    <%= ugovor.vrednost_sa_pdv !== null ? Number(ugovor.vrednost_sa_pdv).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00' %>
-                </td>
-
-                <!-- Izmeni ovo -->
-                <td id="utroseno-bez-<%= ugovor.id %>" class="Broj" style="color: #c97d00;">
-                    <%= Number(ugovor.utroseno_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-                <td id="utroseno-sa-<%= ugovor.id %>" class="Broj" style="color: #c97d00;">
-                    <%= Number(ugovor.utroseno_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-
-                <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_bez_pdv < 0 ? '#d9534f' : '#28a745' %>">
-                    <%= Number(ugovor.ostalo_bez_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-                
-                <td class="Broj" style="font-weight: bold; color: <%= ugovor.ostalo_sa_pdv < 0 ? '#d9534f' : '#28a745' %>">
-                    <%= Number(ugovor.ostalo_sa_pdv).toLocaleString('sr-RS', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
-                </td>
-
-                <!-- Nova ćelija sa kantom za brisanje -->
-                <td style="text-align: center;" onclick="event.stopPropagation();">
-                    <button type="button" 
-                            onclick="obrisiUgovorPrag(<%= ugovor.id %>, '<%= ugovor.broj_ugovora %>')" 
-                            title="Obriši ugovor" 
-                            style="background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;"
-                            onmouseover="this.style.background='#ffe6e6'" 
-                            onmouseout="this.style.background='none'">
-                        🗑️
-                    </button>
-                </td>
-            </tr>
-
-            <tr id="ugovor-expand-<%= ugovor.id %>" style="display: none; background: #fafafa;">
-                <td colspan="10" style="padding: 15px; border-bottom: 1px solid #ccc; cursor: default;" onclick="event.stopPropagation();">
-                    <div id="kontejner-stavki-ugovora-<%= ugovor.id %>" style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
-                        Učitavanje stavki...
-                    </div>
-                </td>
-            </tr>
-            <% }) %>
-            </tbody>
-        </table>
-    </div>
-
-    <script src="/js/script.js"></script>
-</body>
-
-<script>
-
-function filtrirajTabeluStavkiUgovora(ugovorId) {
-    // ISPRAVKA: Ovde sada tražimo 'filter-stavki-ugovora' umesto 'filter-input-ugovor'
-    const input = document.getElementById(`filter-stavki-ugovora-${ugovorId}`);
-    if (!input) return;
-
-    const filter = input.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
-    // Pronalazi redove samo unutar tabele tog konkretnog ugovora
-    const redovi = document.querySelectorAll(`#tabela-stavki-ugovora-${ugovorId} tbody .stavka-red`);
-    
-    let vidljivo = 0;
-    redovi.forEach(red => {
-        const tekst = red.textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        
-        if (tekst.includes(filter)) {
-            red.style.display = "";
-            vidljivo++;
-        } else {
-            red.style.display = "none";
-        }
-    });
-
-    const brojac = document.getElementById(`count-ugovor-${ugovorId}`);
-    if (brojac) brojac.innerText = vidljivo;
-}
-
-const formatirajZaPrikaz = (input) => {
-    // 1. Provera za prazne vrednosti
-    if (!input || input === '-' || input === 'null' || input === 'undefined') return '-';
-    
-    // 2. Kreiramo objekat. 
-    // new Date() u JavaScriptu je jako pametan i sam će prepoznati 
-    // oba formata koja si naveo.
-    const d = new Date(input);
-    
-    // 3. Provera da li je datum validan
-    if (isNaN(d.getTime())) return '-';
-    
-    // 4. Formatiraj i vrati: dd.mm.yyyy.
-    // getMonth() vraća 0-11, zato dodajemo +1
-    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
-};
-
-document.addEventListener("DOMContentLoaded", () => {
-    // Pronađi sve ćelije koje treba formatirati
-    const celije = document.querySelectorAll(".datum-format-celija");
-        
-    celije.forEach(celija => {
-        const sirovi = celija.getAttribute("data-sirovi-datum");
-        // Pozivaš funkciju koja je sada globalna i radi u browseru
-        
-        celija.textContent = formatirajZaPrikaz(sirovi);
-    });
-});
-
-async function prikaziStavkeUgovora(ugovorId) {
-    const row = document.getElementById(`ugovor-expand-${ugovorId}`);
-    const glavniRedUgovora = document.getElementById(`ugovor-glavni-${ugovorId}`);
-    const container = document.getElementById(`kontejner-stavki-ugovora-${ugovorId}`);
-
-    if (row.style.display === 'table-row') {
-        row.style.display = 'none';
-        if (glavniRedUgovora) glavniRedUgovora.classList.remove('ugovor-red-otvoren');
-        return;
-    }
-
-    row.style.display = 'table-row';
-    if (glavniRedUgovora) glavniRedUgovora.classList.add('ugovor-red-otvoren');
-    container.innerHTML = 'Učitavanje stavki...';
-
-    try {
-        const response = await fetch(`/api/ugovor/${ugovorId}/stavke`);
-        const stavke = await response.json();
-        console.log(stavke)
-        // Funkcija za formatiranje datuma (Identitčna kao kod konta)
-        
-
-        const f = (br) => {
-            if (br === undefined || br === null) return '0,00';
-            return Number(br).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        };
-
-        // Gornji deo sa filterom (Pretraga stavki i broj prikazanih stavki ugovora)
-        let html = `
-            <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px;">
-                <input type="text" 
-                       id="filter-stavki-ugovora-${ugovorId}" 
-                       placeholder="Pretraži stavke (dobavljač, račun, artikal...)" 
-                       style="padding: 6px 10px; width: 300px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;"
-                       onkeyup="filtrirajTabeluStavkiUgovora(${ugovorId})">
-                <span style="font-size: 0.8em; color: #666;">Prikazano: <strong id="count-ugovor-${ugovorId}">${stavke.length}</strong> stavki</span>
+        <div class="page-head">
+            <div>
+                <h1>Ugovori i realizacija</h1>
+                <p class="podnaslov">Klikni na ćeliju sa olovkom da ručno uneseš ili izmeniš ugovorenu vrednost. Klik na red otvara stavke ugovora.</p>
             </div>
-            <table id="tabela-stavki-ugovora-${ugovorId}" style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+            <div class="akcije">
+                <a class="btn btn-secondary" href="/izvoz-ugovori-excel"><%- I.download %>Izvoz u Excel</a>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <span class="broj-rezultata">Ukupno unetih ugovora: <strong><%= ugovori.length %></strong></span>
+
+            <details class="dropdown" id="dd-kolone">
+                <summary class="btn btn-secondary"><%- I.columns %>Kolone stavki</summary>
+                <div class="dropdown-panel">
+                    <div class="dropdown-akcije">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="kolonePodesiUgovori('sve')">Prikaži sve</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="kolonePodesiUgovori('osnovno')">Samo osnovne</button>
+                    </div>
+                    <div class="dropdown-grid" id="podesi-prikaz-kolona">
+                        <label><input type="checkbox" data-kolona="col-datum" checked> Datum nabavke</label>
+                        <label><input type="checkbox" data-kolona="col-racun" checked> Br. računa</label>
+                        <label><input type="checkbox" data-kolona="col-dobavljac" checked> Dobavljač</label>
+                        <label><input type="checkbox" data-kolona="col-nabavka" checked> Broj nabavke</label>
+                        <label><input type="checkbox" data-kolona="col-konto" checked> Konto</label>
+                        <label><input type="checkbox" data-kolona="col-izvor" checked> Izvor finansiranja</label>
+                        <label><input type="checkbox" data-kolona="col-partija" checked> Partija</label>
+                        <label><input type="checkbox" data-kolona="col-ugovor" checked> Broj ugovora</label>
+                        <label><input type="checkbox" data-kolona="col-datum-ug" checked> Datum ugovora</label>
+                        <label><input type="checkbox" data-kolona="col-artikal" checked> Naziv artikla</label>
+                        <label><input type="checkbox" data-kolona="col-kolicina" checked> Količina</label>
+                        <label><input type="checkbox" data-kolona="col-cena-bez" checked> Cena bez PDV</label>
+                        <label><input type="checkbox" data-kolona="col-cena-sa" checked> Cena sa PDV</label>
+                        <label><input type="checkbox" data-kolona="col-vred-bez" checked> Vrednost bez PDV</label>
+                        <label><input type="checkbox" data-kolona="col-vred-sa" checked> Vrednost sa PDV</label>
+                        <label><input type="checkbox" data-kolona="col-status" checked> Status plaćanja</label>
+                        <label><input type="checkbox" data-kolona="col-datum-pl" checked> Datum plaćanja</label>
+                        <label><input type="checkbox" data-kolona="col-institut" checked> Institut</label>
+                        <label><input type="checkbox" data-kolona="col-fajl" checked> Excel fajl</label>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- Traka konteksta: pri skrolu pokazuje čije stavke gledaš (popunjava script.js) -->
+        <div class="kontekst" id="kontekst" hidden><div class="kontekst-in" id="kontekst-in" role="button" tabindex="0" title="Klikni da se vratiš na ovaj red"></div></div>
+
+        <div class="karta">
+            <table class="tbl tbl-ugovori">
                 <thead>
-                    <tr class="stavke-header" style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                        <th class="col-datum" style="padding: 8px; text-align: left;">Datum fakture</th>
-                        <th class="col-racun" style="padding: 8px; text-align: left;">Br. računa</th>
-                        <th class="col-dobavljac" style="padding: 8px; text-align: left;">Dobavljač</th>
-                        <th class="col-konto" style="padding: 8px; text-align: left;">Konto</th>
-                        <th class="col-izvor" style="padding: 8px; text-align: left;">Izvor Finansiranja</th>
-                        <th class="col-nabavka" style="padding: 8px; text-align: left;">Broj nabavke</th>
-                        <th class="col-partija" style="padding: 8px; text-align: left;">Partija</th>
-                        <th class="col-ugovor" style="padding: 8px; text-align: left;">Broj ugovora</th>
-                        <th class="col-datum-ug" style="padding: 8px; text-align: left;">Datum ugovora</th>
-                        <th class="col-artikal" style="padding: 8px; text-align: left;">Naziv artikla</th>
-                        <th class="col-kolicina" style="padding: 8px; text-align: left;">Količina</th>
-                        <th class="col-cena-bez" style="padding: 8px; text-align: left;">Cena bez PDV</th>
-                        <th class="col-cena-sa" style="padding: 8px; text-align: left;">Cena sa PDV</th>
-                        <th class="col-vred-bez" style="padding: 8px; text-align: left;">Vrednost bez PDV</th>
-                        <th class="col-vred-sa" style="padding: 8px; text-align: left;">Vrednost sa PDV</th>
-                        <th class="col-status" style="padding: 8px; text-align: left;">Status plaćanja</th>
-                        <th class="col-datum-pl" style="padding: 8px; text-align: left;">Datum plaćanja</th>
-                        <th class="col-institut" style="padding: 8px; text-align: left;">Institut</th>
-                        <th class="col-fajl" style="padding: 8px; text-align: left;">Excel fajl</th>
+                    <tr>
+                        <th>R. br.</th>
+                        <th>Broj ugovora</th>
+                        <th>Datum ugovora</th>
+                        <th class="num">Vrednost bez PDV</th>
+                        <th class="num">Vrednost sa PDV</th>
+                        <th class="num">Utrošeno bez PDV</th>
+                        <th class="num">Utrošeno sa PDV</th>
+                        <th class="num">Preostalo bez PDV</th>
+                        <th class="num">Preostalo sa PDV</th>
+                        <th class="akcija"><span class="sr-only">Akcija</span></th>
                     </tr>
                 </thead>
-                <tbody>`;
-        
-        if (stavke.length === 0) {
-            html += `<tr><td colspan="17" style="padding: 15px; text-align: center; color: #666;">Nema pronađenih stavki za ovaj ugovor.</td></tr>`;
-        } else {
-            stavke.forEach(s => {
-                const dNabavke = formatirajZaPrikaz(s.datum_nabavke);
-                const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
-                const dUgovora = formatirajZaPrikaz(s.datum_zakljucenja || s.datum_ugovora);
-                
-                // Žuta pozadina ako je plaćeno a nema datuma
-                let stilDatuma = 'padding: 8px; cursor: pointer; text-align: center; transition: background 0.3s;';
-                if ((s.status_placanja || '').toLowerCase() === 'placeno' && (!s.datum_placanja || s.datum_placanja === '-')) {
-                    stilDatuma += ' background-color: #fff3cd;';
-                }
+                <tbody>
+                <% if (ugovori.length === 0) { %>
+                    <tr><td colspan="10" class="prazno">Nema unetih ugovora.</td></tr>
+                <% } %>
+                <% ugovori.forEach((ugovor, index) => {
+                    // Postojeća logika za alarm i upozorenje
+                    const vBez = parseFloat(ugovor.vrednost_bez_pdv) || 0;
+                    const vSa = parseFloat(ugovor.vrednost_sa_pdv) || 0;
+                    const uBez = parseFloat(ugovor.utroseno_bez_pdv) || 0;
+                    const uSa = parseFloat(ugovor.utroseno_sa_pdv) || 0;
+                    const oBez = parseFloat(ugovor.ostalo_bez_pdv);
+                    const oSa = parseFloat(ugovor.ostalo_sa_pdv);
 
-                const statusKlasa = (s.status_placanja || 'za placanje')
-                                                                        .toLowerCase()
-                                                                        .replace('ć', 'c')
-                                                                        .replace('č', 'c')
-                                                                        .replace(' ', '-');
+                    // Alarm (ista pravila kao ranije): preko 70% potrošeno, ili vrednost 0 a troši se -> crven red
+                    let alarm = null;
+                    if (vSa > 0) {
+                        if (uSa / vSa > 0.7) alarm = 'Upozorenje: Potrošeno je preko 70% ugovora!';
+                    } else if (vSa === 0 && uSa > 0) {
+                        alarm = 'Kritično: Ugovorena vrednost je 0,00, a sredstva se troše!';
+                    }
 
-                html += `
-                    <tr class="stavka-red" style="border-bottom: 1px solid #eee;">
-                        <td class="col-datum" style="padding: 8px;">${dNabavke}</td>
-                        <td class="col-racun" style="padding: 8px;">${s.br_racuna || '-'}</td>
-                        <td class="col-dobavljac" style="padding: 8px;">${s.dobavljac || '-'}</td>
-                        <td class="col-konto" style="padding: 8px;">${s.ime_konta}</td>
-                        <td class="col-izvor" style="padding: 8px;">${s.fond_ime || '-'}</td>
-                        <td class="col-nabavka" style="padding: 8px;">${s.broj_nabavke || s.brojNabavke || '-'}</td>
-                        <td class="col-partija" style="padding: 8px;">${s.partija || '-'}</td>
-                        <td class="col-ugovor" style="padding: 8px;">${s.broj_ugovora || s.brojUgovora || '-'}</td>
-                        <td class="col-datum-ug" style="padding: 8px;">${dUgovora}</td>
-                        <td class="col-artikal" style="padding: 8px; font-weight: 500;">${s.naziv_artikla}</td>
-                        <td class="col-kolicina" style="padding: 8px;">${s.kolicina || 0}</td>
-                        <td class="col-cena-bez" style="padding: 8px;">${f(s.cena_bez_pdv || s.cenaBez)}</td>
-                        <td class="col-cena-sa" style="padding: 8px;">${f(s.cena_sa_pdv || s.cenaSa)}</td>
-                        <td class="col-vred-bez" style="padding: 8px;">${f(s.vred_bez_pdv || s.vrednostBez)}</td>
-                        <td class="col-vred-sa" style="padding: 8px; font-weight: bold;">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
-                        
-                        <td class="col-status" style="padding: 8px; cursor: pointer;" 
-                            ondblclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}', ${ugovorId})">
-                            <span class="badge-${statusKlasa}">${s.status_placanja || '-'}</span>
+                    const pct = vSa > 0 ? Math.round(uSa / vSa * 100) : null;
+                    const nivo = pct === null ? '' : (pct >= 90 ? 'kriticno' : (pct >= 70 ? 'upozorenje' : 'ok'));
+                %>
+                    <tr id="ugovor-glavni-<%= ugovor.id %>" class="ugovor-red<%= alarm ? ' ugovor-kriticno' : '' %>"
+                        <% if (alarm) { %>title="<%= alarm %>"<% } %>
+                        data-id="<%= ugovor.id %>" data-broj="<%= ugovor.broj_ugovora %>"
+                        data-v-sa="<%= vSa %>" data-v-bez="<%= vBez %>"
+                        onclick="prikaziStavkeUgovora(<%= ugovor.id %>)">
+
+                        <td class="c-rbr"><span class="chev"><%- I.chev %></span><%= index + 1 %>.</td>
+
+                        <td>
+                            <strong><%= ugovor.broj_ugovora %></strong>
                         </td>
 
-                        <td class="col-datum-pl" style="${stilDatuma}" 
-                            onclick="omoguciIzmenuDatumaPlacanja(this, ${s.id}, '${s.status_placanja || 'za placanje'}', '${s.datum_placanja || '-'}')">
-                            ${dPlacanja}
+                        <td class="datum-format-celija" data-sirovi-datum="<%= ugovor.datum_zakljucenja %>"></td>
+
+                        <td class="num sredstva-celija" title="Klik za izmenu"
+                            onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_bez_pdv', <%= Number(ugovor.vrednost_bez_pdv || 0) %>)">
+                            <%= fmt(ugovor.vrednost_bez_pdv) %><span class="olovka"><%- I.pencil %></span>
                         </td>
-                        
-                        <td class="col-institut" style="padding: 8px;">${s.institut || '-'}</td>
-                        <td class="col-fajl" style="padding: 8px; font-size: 0.9em; color: #666;">${s.ime_fajla || s.nazivFajla || '-'}</td>
-                    </tr>`;
+
+                        <td class="num sredstva-celija" title="Klik za izmenu"
+                            onclick="event.stopPropagation(); izmeniPoljeUgovora('<%= ugovor.id %>', 'vrednost_sa_pdv', <%= Number(ugovor.vrednost_sa_pdv || 0) %>)">
+                            <%= fmt(ugovor.vrednost_sa_pdv) %><span class="olovka"><%- I.pencil %></span>
+                        </td>
+
+                        <td class="num"><span id="utroseno-bez-<%= ugovor.id %>" class="v-utroseno"><%= fmt(uBez) %></span></td>
+
+                        <td class="num">
+                            <span id="utroseno-sa-<%= ugovor.id %>" class="v-utroseno"><%= fmt(uSa) %></span>
+                            <div class="traka-omot" id="traka-ugovor-<%= ugovor.id %>">
+                                <% if (pct !== null) { %>
+                                    <div class="traka <%= nivo %>"><span style="width: <%= Math.max(0, Math.min(100, pct)) %>%"></span></div>
+                                    <span class="traka-oznaka"><%= pct %>%</span>
+                                <% } %>
+                            </div>
+                        </td>
+
+                        <td class="num"><span id="preostalo-bez-<%= ugovor.id %>" class="<%= oBez < 0 ? 'neg' : 'pos' %>"><%= fmt(oBez) %></span></td>
+                        <td class="num"><span id="preostalo-sa-<%= ugovor.id %>" class="<%= oSa < 0 ? 'neg' : 'pos' %>"><%= fmt(oSa) %></span></td>
+
+                        <td class="akcija" onclick="event.stopPropagation();">
+                            <button type="button" class="icon-btn btn-obrisi" title="Obriši ugovor"
+                                    data-broj="<%= ugovor.broj_ugovora %>"
+                                    onclick="obrisiUgovorPrag(<%= ugovor.id %>, this.dataset.broj)"><%- I.trash %></button>
+                        </td>
+                    </tr>
+
+                    <tr id="ugovor-expand-<%= ugovor.id %>" class="ugovor-expand-red" style="display: none;">
+                        <td colspan="10" onclick="event.stopPropagation();">
+                            <div id="kontejner-stavki-ugovora-<%= ugovor.id %>" class="ugovor-stavke">
+                                <div class="ucitavanje"><span class="spinner"></span>Učitavanje stavki…</div>
+                            </div>
+                        </td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="/js/script.js"></script>
+    <script>
+    function filtrirajTabeluStavkiUgovora(ugovorId) {
+        const input = document.getElementById(`filter-stavki-ugovora-${ugovorId}`);
+        if (!input) return;
+
+        const filter = input.value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+        // Pronalazi redove samo unutar tabele tog konkretnog ugovora
+        const redovi = document.querySelectorAll(`#tabela-stavki-ugovora-${ugovorId} tbody .stavka-red`);
+
+        let vidljivo = 0;
+        redovi.forEach(red => {
+            const tekst = red.textContent.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+            if (tekst.includes(filter)) {
+                red.style.display = "";
+                vidljivo++;
+            } else {
+                red.style.display = "none";
+            }
+        });
+
+        const brojac = document.getElementById(`count-ugovor-${ugovorId}`);
+        if (brojac) brojac.innerText = vidljivo;
+    }
+
+    // Datum (ISO ili dd.mm.yyyy) -> dd.mm.yyyy.
+    const formatirajZaPrikaz = (input) => {
+        if (!input || input === '-' || input === 'null' || input === 'undefined') return '-';
+        const d = new Date(input);
+        if (isNaN(d.getTime())) return '-';
+        return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll(".datum-format-celija").forEach(celija => {
+            celija.textContent = formatirajZaPrikaz(celija.getAttribute("data-sirovi-datum"));
+        });
+    });
+
+    async function prikaziStavkeUgovora(ugovorId) {
+        const row = document.getElementById(`ugovor-expand-${ugovorId}`);
+        const glavniRedUgovora = document.getElementById(`ugovor-glavni-${ugovorId}`);
+        const container = document.getElementById(`kontejner-stavki-ugovora-${ugovorId}`);
+
+        if (row.style.display === 'table-row') {
+            row.style.display = 'none';
+            if (glavniRedUgovora) glavniRedUgovora.classList.remove('ugovor-red-otvoren');
+            zakaziKontekst();
+            return;
+        }
+
+        row.style.display = 'table-row';
+        if (glavniRedUgovora) glavniRedUgovora.classList.add('ugovor-red-otvoren');
+        container.innerHTML = '<div class="ucitavanje"><span class="spinner"></span>Učitavanje stavki…</div>';
+
+        try {
+            const response = await fetch(`/api/ugovor/${ugovorId}/stavke`);
+            const stavke = await response.json();
+
+            const f = (br) => {
+                if (br === undefined || br === null) return '0,00';
+                return Number(br).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            };
+
+            let html = `
+                <div class="stavke-alat">
+                    <input type="text" class="input input-sm"
+                           id="filter-stavki-ugovora-${ugovorId}"
+                           placeholder="Pretraži stavke (dobavljač, račun, artikal...)"
+                           onkeyup="filtrirajTabeluStavkiUgovora(${ugovorId})">
+                    <span class="stavke-brojac">Prikazano: <strong id="count-ugovor-${ugovorId}">${stavke.length}</strong> stavki</span>
+                </div>
+                <div class="stavke-omot">
+                <table id="tabela-stavki-ugovora-${ugovorId}" class="tbl tbl-stavke">
+                    <thead>
+                        <tr class="stavke-header">
+                            <th class="col-datum">Datum fakture</th>
+                            <th class="col-racun">Br. računa</th>
+                            <th class="col-dobavljac">Dobavljač</th>
+                            <th class="col-konto">Konto</th>
+                            <th class="col-izvor">Izvor finansiranja</th>
+                            <th class="col-nabavka">Broj nabavke</th>
+                            <th class="col-partija">Partija</th>
+                            <th class="col-ugovor">Broj ugovora</th>
+                            <th class="col-datum-ug">Datum ugovora</th>
+                            <th class="col-artikal">Naziv artikla</th>
+                            <th class="col-kolicina num">Količina</th>
+                            <th class="col-cena-bez num">Cena bez PDV</th>
+                            <th class="col-cena-sa num">Cena sa PDV</th>
+                            <th class="col-vred-bez num">Vrednost bez PDV</th>
+                            <th class="col-vred-sa num">Vrednost sa PDV</th>
+                            <th class="col-status">Status plaćanja</th>
+                            <th class="col-datum-pl">Datum plaćanja</th>
+                            <th class="col-institut">Institut</th>
+                            <th class="col-fajl">Excel fajl</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            if (stavke.length === 0) {
+                html += `<tr><td colspan="19" class="prazno">Nema pronađenih stavki za ovaj ugovor.</td></tr>`;
+            } else {
+                stavke.forEach(s => {
+                    const dNabavke = formatirajZaPrikaz(s.datum_nabavke);
+                    const dPlacanja = formatirajZaPrikaz(s.datum_placanja);
+                    const dUgovora = formatirajZaPrikaz(s.datum_zakljucenja || s.datum_ugovora);
+
+                    // Plaćeno, a nema datuma plaćanja -> istaknuta (žuta) ćelija
+                    const nedostajeDatum = (s.status_placanja || '').toLowerCase() === 'placeno' && (!s.datum_placanja || s.datum_placanja === '-');
+
+                    const statusKlasa = (s.status_placanja || 'za placanje')
+                        .toLowerCase()
+                        .replace('ć', 'c')
+                        .replace('č', 'c')
+                        .replace(' ', '-');
+
+                    html += `
+                        <tr class="stavka-red">
+                            <td class="col-datum">${dNabavke}</td>
+                            <td class="col-racun">${esc(s.br_racuna || '-')}</td>
+                            <td class="col-dobavljac">${esc(s.dobavljac || '-')}</td>
+                            <td class="col-konto">${esc(s.ime_konta)}</td>
+                            <td class="col-izvor">${esc(s.fond_ime || '-')}</td>
+                            <td class="col-nabavka">${esc(s.broj_nabavke || s.brojNabavke || '-')}</td>
+                            <td class="col-partija">${esc(s.partija || '-')}</td>
+                            <td class="col-ugovor">${esc(s.broj_ugovora || s.brojUgovora || '-')}</td>
+                            <td class="col-datum-ug">${dUgovora}</td>
+                            <td class="col-artikal">${esc(s.naziv_artikla)}</td>
+                            <td class="col-kolicina num">${esc(s.kolicina || 0)}</td>
+                            <td class="col-cena-bez num">${f(s.cena_bez_pdv || s.cenaBez)}</td>
+                            <td class="col-cena-sa num">${f(s.cena_sa_pdv || s.cenaSa)}</td>
+                            <td class="col-vred-bez num">${f(s.vred_bez_pdv || s.vrednostBez)}</td>
+                            <td class="col-vred-sa num">${f(s.vred_sa_pdv || s.vrednostSa)}</td>
+
+                            <td class="col-status" title="Dvoklik menja status"
+                                ondblclick="promeniStatusKlikom(this, ${s.id}, '${s.status_placanja || 'za placanje'}', ${ugovorId})">
+                                <span class="badge-${statusKlasa}">${esc(s.status_placanja || '-')}</span>
+                            </td>
+
+                            <td class="col-datum-pl${nedostajeDatum ? ' nedostaje-datum' : ''}" title="Klik menja datum plaćanja"
+                                onclick="omoguciIzmenuDatumaPlacanja(this, ${s.id}, '${s.status_placanja || 'za placanje'}', '${s.datum_placanja || '-'}')">
+                                ${dPlacanja}
+                            </td>
+
+                            <td class="col-institut">${esc(s.institut || '-')}</td>
+                            <td class="col-fajl">${esc(s.ime_fajla || s.nazivFajla || '-')}</td>
+                        </tr>`;
+                });
+            }
+
+            container.innerHTML = html + `</tbody></table></div>`;
+
+            // Odmah sakrij kolone prema izboru u padajućem meniju
+            primeniPrikazKolonaUgovori();
+            zakaziKontekst();
+
+        } catch (e) {
+            console.error("Greška pri učitavanju stavki ugovora:", e);
+            container.innerHTML = `<div class="greska-tekst">Greška prilikom učitavanja podataka.</div>`;
+        }
+    }
+
+    // Sakrivanje i prikazivanje kolona na celoj stranici
+    function primeniPrikazKolonaUgovori() {
+        document.querySelectorAll('#podesi-prikaz-kolona input[type="checkbox"]').forEach(cb => {
+            const klasaKolone = cb.getAttribute('data-kolona');
+            document.querySelectorAll(`.${klasaKolone}`).forEach(el => {
+                el.style.display = cb.checked ? '' : 'none';
             });
-        }
-        
-        container.innerHTML = html + `</tbody></table>`;
-
-        // Pokreće tvoju postojeću skriptu koja odmah sakriva kolone na osnovu checkboxova sa vrha stranice
-        if (typeof primeniPrikazKolona === "function") {
-            primeniPrikazKolona();
-        }
-
-    } catch (e) { 
-        console.error("Greška pri učitavanju stavki ugovora:", e);
-        container.innerHTML = `<span style="color: red;">Greška prilikom učitavanja podataka.</span>`; 
+        });
     }
-}
 
-// Globalna funkcija za sakrivanje i prikazivanje kolona na celoj stranici
-function primeniPrikazKolona() {
-    const sviCheckboxes = document.querySelectorAll('#podesi-prikaz-kolona input[type="checkbox"]');
-    
-    sviCheckboxes.forEach(cb => {
-        const klasaKolone = cb.getAttribute('data-kolona');
-        const prikazi = cb.checked;
-        
-        // Pronalazi sve ćelije (th i td) sa tom klasom bilo gde na stranici
-        const elementi = document.querySelectorAll(`.${klasaKolone}`);
-        elementi.forEach(el => {
-            el.style.display = prikazi ? '' : 'none';
+    // Brzi izbor: sve kolone ili samo osnovne
+    function kolonePodesiUgovori(mod) {
+        const osnovne = ['col-datum', 'col-racun', 'col-dobavljac', 'col-konto', 'col-izvor', 'col-artikal', 'col-vred-sa', 'col-status', 'col-datum-pl'];
+        document.querySelectorAll('#podesi-prikaz-kolona input[type="checkbox"]').forEach(cb => {
+            cb.checked = mod === 'sve' ? true : osnovne.includes(cb.getAttribute('data-kolona'));
+        });
+        primeniPrikazKolonaUgovori();
+    }
+
+    async function obrisiUgovorPrag(ugovorId, brojUgovora) {
+        const ok = await potvrdi(
+            'Brisanje ugovora',
+            `Da li ste sigurni da želite da obrišete ugovor broj: "${brojUgovora}"? Ugovor će biti obrisan SAMO ako nema ni jednu pridruženu stavku.`,
+            { oznaka: 'Obriši', opasno: true }
+        );
+        if (!ok) return;
+
+        try {
+            const response = await fetch('/obrisi-ugovor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: ugovorId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                zapamtiToast(data.message, 'uspeh');
+                location.reload(); // Osveži stranicu da ugovor nestane iz tabele
+            } else {
+                prikaziToast("Brisanje nije uspelo: " + data.message, 'greska', 7000);
+            }
+        } catch (e) {
+            console.error("Greška pri brisanju ugovora:", e);
+            prikaziToast("Došlo je do greške na mreži prilikom brisanja ugovora.", 'greska');
+        }
+    }
+
+    // Promena bilo kog checkboxa u podešavanju kolona
+    document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll('#podesi-prikaz-kolona input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', primeniPrikazKolonaUgovori);
         });
     });
-}
-
-async function obrisiUgovorPrag(ugovorId, brojUgovora) {
-    if (!confirm(`Da li ste sigurni da želite da obrišete ugovor broj: "${brojUgovora}"?\n\nUgovor će biti obrisan SAMO ako nema ni jednu pridruženu stavku.`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/obrisi-ugovor', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: ugovorId })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert(data.message);
-            location.reload(); // Osveži stranicu da ugovor nestane iz tabele
-        } else {
-            alert("Brisanje nije uspelo:\n" + data.message);
-        }
-    } catch (e) {
-        console.error("Greška pri brisanju ugovora:", e);
-        alert("Došlo je do greške na mreži prilikom brisanja ugovora.");
-    }
-}
-
-// Vezivanje događaja za promenu stanja checkboxova čim se stranica učita
-document.addEventListener("DOMContentLoaded", () => {
-    const sviCheckboxes = document.querySelectorAll('#podesi-prikaz-kolona input[type="checkbox"]');
-    sviCheckboxes.forEach(cb => {
-        cb.addEventListener('change', primeniPrikazKolona);
-    });
-});
-</script>
+    </script>
+</body>
 </html>
